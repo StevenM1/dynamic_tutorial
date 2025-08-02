@@ -22,8 +22,8 @@ plot_history_effects <- function(dat, pp, n_hist=3) {
   pp$stim <- pp$S==is_Sone
   
   ## remove
-  dat <- dat[!is.na(dat$Sminus3),]
-  pp <- pp[!is.na(pp$Sminus3),]
+  dat <- dat[!is.na(dat[,paste0('Sminus', n_hist)]),]
+  pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
   
   par(mfcol=c(3,2))
   for(hist_type in c('stimuli', 'responses')) {
