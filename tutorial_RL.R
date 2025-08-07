@@ -4,9 +4,8 @@ rm(list=ls())
 #library(EMC2)
 #
 
-wd <- '~/Desktop/dynamic_tutorial/'
-# #dat <- EMC2:::loadRData('~/Desktop/dynamic_tutorial/datasets/dataset-trondheim_task-revl.RData')
-# dat <- EMC2:::loadRData('~/Desktop/dynamic_tutorial/datasets/data_exp1.RData')
+wd <- '.'  # '~/Desktop/dynamic_tutorial'
+# dat <- EMC2:::loadRData(file.path(wd, 'datasets/data_exp1.RData'))
 # dat <- dat[!dat$excl,]  # exclude subjects based on criteria of Miletic et al 2021
 # dat$subjects <- as.factor(dat$pp)
 # dat$s_left <- dat$appear_left
@@ -32,7 +31,7 @@ Smatch_prereversal <- function(d) {
   return(d$Rs %in% correct_symbols_prereversal)
 }
 
-dat <- EMC2:::loadRData('~/Desktop/dynamic_tutorial/datasets/dataset-trondheim_task-revl.RData')
+dat <- EMC2:::loadRData(file.path(wd, 'datasets/dataset-trondheim_task-revl.RData'))
 dat$S <- NA
 dat[dat$p_left>dat$p_right,'S'] <- 'left'
 dat[dat$p_left<dat$p_right,'S'] <- 'right'
