@@ -36,10 +36,10 @@ samplers <- make_emc(wgm, design=design, compress=FALSE)
 
 fn <- file.path(wd, 'samples/wgm_MS3.RData')
 samplers <- fit(samplers, iter=1000, cores_per_chain=6, cores_for_chains=3, fileName=fn)
+samplers <- EMC2:::loadRData(fn)
 # This one takes quite a bit longer to converge -- this is a hard model to sample, and 
 # the data are not super informative for AM. But still, it convergences with decent
-# chains
-# took some 40 minutes here
+# chains took some 40 minutes here
 
 plot(samplers)
 plot_pars(samplers)
@@ -54,6 +54,7 @@ pp$accuracy <- 1-pp$error
 wgm <- EMC2:::add_trials(wgm)
 data_PES <- getErrorEffects(wgm)
 pp_PES <- getErrorEffects(pp)
+par(mfrow=c(1,1))
 plotPES(data_PES=data_PES$average, pp_PES_CI=pp_PES$average,
         mean_rt=mean(aggregate(rt~subjects,wgm,mean)[,2]),
         main='Error-related effects')
@@ -110,6 +111,7 @@ pp$accuracy <- 1-pp$error
 wgm <- EMC2:::add_trials(wgm)
 data_PES <- getErrorEffects(wgm)
 pp_PES <- getErrorEffects(pp)
+par(mfrow=c(1,1))
 plotPES(data_PES=data_PES$average, pp_PES_CI=pp_PES$average,
         mean_rt=mean(aggregate(rt~subjects,wgm,mean)[,2]),
         main='Error-related effects')

@@ -25,6 +25,8 @@ design <- design(model=RDM,
 samplers <- make_emc(wgm, design=design, compress=FALSE)
 
 samplers <- fit(samplers, iter=1000, cores_per_chain=6, cores_for_chains=3, fileName=file.path(wd, 'samples/wgm_FM.RData'))
+samplers <- EMC2:::loadRData(file.path(wd, 'samples/wgm_FM.RData'))
+check(samplers)
 
 # Simulate again
 pp <- predict(samplers, n_post=100, n_cores=30, conditional_on_data=FALSE)

@@ -28,7 +28,7 @@ design <- design(model=RDM,
                  trend=trend_AM)
 samplers <- make_emc(wgm, design=design, compress=FALSE)
 
-# samplers <- fit(samplers, iter=1000, cores_per_chain=6, cores_for_chains=3, fileName=file.path(wd, 'samples/wgm_AM.RData'))
+samplers <- fit(samplers, iter=1000, cores_per_chain=6, cores_for_chains=3, fileName=file.path(wd, 'samples/wgm_AM.RData'))
 samplers <- EMC2:::loadRData(file.path(wd, 'samples/wgm_AM.RData'))
 
 check(samplers)    # learning rate alpha tends to be difficult to estimate
@@ -46,6 +46,7 @@ pp$accuracy <- 1-pp$error
 
 data_PES <- getErrorEffects(wgm)
 pp_PES <- getErrorEffects(pp, mc.cores=10)
+par(mfrow=c(1,1))
 plotPES(data_PES=data_PES$average, pp_PES=pp_PES$average, 
         mean_rt=mean(aggregate(rt~subjects,wgm,mean)[,2]),
         main='Error-related effects')
@@ -80,7 +81,7 @@ design_DDM <- design(model=DDM,
 sampled_pars(design_DDM)
 
 samplers <- make_emc(wgm, design=design_DDM, compress=FALSE)
-# samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3, fileName=file.path(wd, './samples/wgm_AM_DDM.RData'))
+samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3, fileName=file.path(wd, './samples/wgm_AM_DDM.RData'))
 samplers <- EMC2:::loadRData(file.path(wd, 'samples/wgm_AM_DDM.RData'))
 
 
