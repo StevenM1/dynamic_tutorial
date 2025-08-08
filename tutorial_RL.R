@@ -1,10 +1,10 @@
 ### RL in EMC2 with trend?
 rm(list=ls())
-#remotes::install_github("ampl-psych/EMC2@RL",dependencies=TRUE, Ncpus=8)
-#library(EMC2)
-#
+# remotes::install_github("ampl-psych/EMC2@RL",dependencies=TRUE, Ncpus=8)
+library(EMC2)
+wd <- '.'
 
-wd <- '.'  # '~/Desktop/dynamic_tutorial'
+## experiment 1 of Miletic et al (2021) Elife
 # dat <- EMC2:::loadRData(file.path(wd, 'datasets/data_exp1.RData'))
 # dat <- dat[!dat$excl,]  # exclude subjects based on criteria of Miletic et al 2021
 # dat$subjects <- as.factor(dat$pp)
@@ -20,9 +20,10 @@ wd <- '.'  # '~/Desktop/dynamic_tutorial'
 # dat$reward <- dat$outcome/100
 # dat <- dat[,c('subjects', 'trials', 'S', 'R', 'rt', 'reward', 's_left', 's_right', 'p_left', 'p_right', 'trialBin')]
 # head(dat)
+# samplers_fn <- file.path(wd, './samples/rl_exp1.RData')
 
-## alternatively, revl
-# for reversal learning paradigms
+
+## Alternatively, load a reversal learning paradigm (similar to experiment 3 in Miletic et al (2021) Elife)
 Smatch_prereversal <- function(d) {
   # this figures out which responses correspond to the symbol that had the high pay-off probability at the start of the experiment.
   tmp <- d[!duplicated(d[,c('s_left', 'p_left')]),]
@@ -37,9 +38,10 @@ dat[dat$p_left>dat$p_right,'S'] <- 'left'
 dat[dat$p_left<dat$p_right,'S'] <- 'right'
 dat$S <- factor(dat$S, levels=levels(dat$R))
 dat$Smatchprerev <- Smatch_prereversal(dat)
-samplers_fn <- file.path(wd, './samples/dat_revl_full.RData')
+dat <- dat[,c('subjects', 'trials', 'S', 'R', 'rt', 'reward', 's_left', 's_right', 'p_left', 'p_right', 'Smatchprerev', 'trialNreversal', "Racc")]
+samplers_fn <- file.path(wd, './samples/rl_revl.RData')
 
-# Getting the data in the right format ------------------------------------
+# Getting the dadm in the right format ------------------------------------
 # For RL paradigms, we need to use a combination of response-coding of accumulators (left/right)
 # and *stimulus/symbol-coding* of accumulators (mapping each accumulator onto a symbol that represents each choice option),
 RS <- function(d) {
@@ -58,8 +60,6 @@ Smatch <- function(d) {
   ifelse(d$p_left > d$p_right, d$s_left, d$s_right)
 }
 
-
-
 # this is a function generator that generates one column per symbol, with the appropriate structure in the dadm for updating.
 covariate_column_generator <- function(col_name) {
   function(d) {
@@ -73,7 +73,8 @@ all_symbols <- unique(c(dat$s_left, dat$s_right))
 make_covariate_columns <- setNames(lapply(all_symbols, covariate_column_generator), all_symbols)
 
 ## Make trend
-trend_RL <- make_trend(kernel='delta', base='lin', cov_names=list(all_symbols), par_names='v',
+trend_RL <- make_trend(kernel='delta', base='lin', 
+                       cov_names=list(all_symbols), par_names='v',
                        premap = FALSE, pretransform = FALSE)
 
 ## Make design
@@ -82,29 +83,25 @@ design_RDM <- design(model=RDM,
                      matchfun=function(d) d$S == d$lR,
                      functions=c(list(RS=RS, Smatch=Smatch, lRS=lRS), make_covariate_columns),
                      formula=list(B ~ 1, v ~ 1, t0 ~ 1),
-                     constants=c('v.q0'=0),    # don't try to estimate Q0 -- won't work. Assume it starts at 0 (unbiased)
+                     constants=c('v.q0'=0),    
+                     # don't try to estimate Q0 -- won't work. 
+                     # Assume it starts at 0 (unbiased)
                      trend=trend_RL)
 
 samplers <- make_emc(dat, design=design_RDM, compress=FALSE)
 head(samplers[[1]]$data[[1]])
 
-samplers <- fit(samplers, iter=1000, cores_per_chain=2, cores_for_chains=3, fileName=samplers_fn)
+samplers <- fit(samplers, iter=1000, cores_per_chain=10, cores_for_chains=3, fileName=samplers_fn)
 samplers <- EMC2:::loadRData(samplers_fn)
 plot_pars(samplers)
 
-# for debugging
-undebug(make_data)
-debug(EMC2:::run_trend)
-pp <- predict(samplers, n_cores=1, conditional_on_data=TRUE, return_covariates=TRUE, return_trialwise_parameters=TRUE)
+pp <- predict(samplers, n_cores=6, conditional_on_data=TRUE)
 
-# dadm_full <- do.call(rbind, samplers[[1]]$data)
-# covs<-attr(pp, 'covariates')
-# twise_pars<-attr(pp, 'trialwise_parameters')
 
+# If you loaded experiment 1, here's some plotting code -------------------
+## Aggregations for Exp 1
 dat$accuracy <- dat$S==dat$R
 pp$accuracy <- pp$S==pp$R
-
-## Aggregations for Exp 1
 dat$bin <- as.numeric(cut(dat$trials, breaks=10))
 pp$bin <- as.numeric(cut(pp$trials, breaks=10))
 
@@ -156,11 +153,13 @@ for(quantile_ in c('10%', '50%', '90%')) {
 }
 
 
+
+# If you loaded the revl paradigm (experiment 3), here's some othe --------
 # aggregations for REVL ------------------------------------------------------------
-pp$RS <- RS(pp) #pp$Rs==pp$Smatchprerev
+#pp$RS <- RS(pp)
 pp$acc <- pp$S==pp$R
+dat$acc <- dat$S==dat$R
 pp$Racc <- pp$acc==pp$Smatchprerev
-#pp$Racc <- pp$RS==pp$Scorrectprerev
 
 aggRT <- aggregate(rt~trialNreversal,dat,quantile, c(.1, .5,.9))
 aggRTpp <- aggregate(rt~trialNreversal, aggregate(rt~trialNreversal*postn, pp, quantile, c(.1, .5, .9)), quantile, c(.025, .5,.975))
