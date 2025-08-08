@@ -28,7 +28,7 @@ design_RDM <- design(model=RDM,
                  matchfun=function(d) d$S==d$lR,
                  formula=list(B ~ lR, v ~ lM, t0 ~ 1),
                  transform=list(func=c(B='identity')),    # see note below
-                 constants=c('q0_SM'=0, 'B_lRd'=0),    # don't try to estimate Q0 -- won't work. Assume it starts at 0 (unbiased)
+                 constants=c('q0_SM'=0, 'B_lRd'=0),       # don't try to estimate Q0 -- won't work. Assume it starts at 0 (unbiased)
                  trend=trend_SM)
 sampled_pars(design_RDM)
 
@@ -71,9 +71,11 @@ plot_history_effects(wgm,pp)
 # Additionally, we can ask predict() to return the updated covariates
 pp <- predict(samplers, n_cores=20, return_covariates=TRUE)
 covariates <- attr(pp, 'covariates')
+covariates <- covariates[[1]]
+if(is.null(dim(covariates))) covariates <- t(t(covariates))
 # Note that covariates are in the length of the dadm, so in this case, we have *two* rows per trial (one per accumulator).
 # To plot the evolution of the covariate
-plot(covariates[seq(1, nrow(covariates), 2),'q0_SM'], xlim=c(1, 30))
+plot(covariates[seq(1, nrow(covariates), 2),], xlim=c(1, 30), type='l', xlab='Trial', ylab='Updated Q value')
 
 
 
@@ -105,10 +107,9 @@ plot_history_effects(wgm,pp)
 compare(sList=list(rdm=EMC2:::loadRData(file.path(wd, 'samples/wgm_SM.RData')),
                    ddm=EMC2:::loadRData(file.path(wd, 'samples/wgm_SM_DDM.RData'))), BayesFactor = FALSE)
 
-
-
 # Exercise ----------------------------------------------------------------
 # So far, we've assumed that SM biases start points (or threshold differences). An alternative hypothesis could be that
 # SM affects drift rates -- e.g., participants selectively attend to the option that was most often present in the
 # recent trial history. Implement an RDM or DDM where drift rates vary with SM.
+
 
