@@ -58,7 +58,7 @@ plot_exp1 <- function(dat, pp) {
 }
 
 
-plot_revl <- function(dat, pp) {
+plot_revl <- function(dat, pp, plot_all_RT_quantiles=TRUE) {
   dat$RS <- RS(dat)
   dat$Racc <- dat$chosen_symbol_was_correct_prereversal <- Smatch_prereversal(dat)
   pp$RS <- RS(pp)
@@ -78,13 +78,30 @@ plot_revl <- function(dat, pp) {
     aggChoicepp <- aggregate(Racc~trialNreversal, aggregate(Racc~trialNreversal*postn,pp,mean), quantile, c(0.025, .5, .975))
   
     plot(aggChoice$trialNreversal, aggChoice$Racc, type='b', lwd=2, ylab='Choice = accurate prerev', xlab='Trial N (relative to reversal)')
-    abline(v=0, lty=2)
     polygon(c(aggChoicepp$trialNreversal, rev(aggChoicepp$trialNreversal)),
             c(aggChoicepp$Racc[,1], rev(aggChoicepp$Racc[,3])), col=adjustcolor(2, alpha.f=.4))
-  
-    plot(aggRT$trialNreversal, aggRT$rt[,2], type='b', lwd=2, ylab='RT (s)', xlab='Trial N (relative to reversal)', ylim=c(0.5,1))
     abline(v=0, lty=2)
+    
+    
+    ## RTs: median
+    if(plot_all_RT_quantiles) {
+      ylim <- range(c(aggRT$rt[,2], quantile(as.matrix(aggRTpp[,-1]), c(0.025, .975))))
+    } else {
+      ylim <- range(c(aggRT$rt[,2], aggRTpp$`50%`))
+    }
+    plot(aggRT$trialNreversal, aggRT$rt[,2], type='b', lwd=2, ylab='RT (s)', xlab='Trial N (relative to reversal)', ylim=ylim)
     polygon(c(aggRTpp$trialNreversal, rev(aggRTpp$trialNreversal)),
             c(aggRTpp$`50%`[,1], rev(aggRTpp$`50%`[,3])), col=adjustcolor(2, alpha.f=.4))
+    abline(v=0, lty=2)
+    
+    if(plot_all_RT_quantiles) {
+      # and 10th, 90th quantile
+      points(aggRT$trialNreversal, aggRT$rt[,1], type='b', lwd=2)
+      points(aggRT$trialNreversal, aggRT$rt[,3], type='b', lwd=2)
+      polygon(c(aggRTpp$trialNreversal, rev(aggRTpp$trialNreversal)),
+              c(aggRTpp$`10%`[,1], rev(aggRTpp$`10%`[,3])), col=adjustcolor(2, alpha.f=.4))
+      polygon(c(aggRTpp$trialNreversal, rev(aggRTpp$trialNreversal)),
+              c(aggRTpp$`90%`[,1], rev(aggRTpp$`90%`[,3])), col=adjustcolor(2, alpha.f=.4))
+    }
   }
 }

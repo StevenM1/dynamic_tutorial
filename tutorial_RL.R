@@ -135,8 +135,11 @@ ppC <- predict(samplers, n_cores=30, n_post = 100,
 ppU <- predict(samplers, n_cores=30, n_post = 100,
                conditional_on_data=FALSE, return_covariates=TRUE, return_trialwise_parameters=FALSE)
 
+debug(plot_revl)
 plot_revl(dat=dat,pp=ppC)
+
 plot_revl(dat=dat,pp=ppU)
+plot_revl(dat=dat,pp=ppU,plot_all_RT_quantiles=FALSE)  # focus only on median RTs?
 
 
 
