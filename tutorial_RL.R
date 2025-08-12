@@ -1,91 +1,126 @@
 ### RL in EMC2 with trend?
 rm(list=ls())
-# remotes::install_github("ampl-psych/EMC2@RL",dependencies=TRUE, Ncpus=8)
+# remotes::install_github("ampl-psych/EMC2@RL",dependencies=TRUE, Ncpus=8);.rs.restartR()
 library(EMC2)
+
 wd <- '.'
+source(file.path(wd, 'RL_utility_functions.R'))
+source(file.path(wd, 'RL_plotting_utils.R'))
 
-## experiment 1 of Miletic et al (2021) Elife
-# dat <- EMC2:::loadRData(file.path(wd, 'datasets/data_exp1.RData'))
-# dat <- dat[!dat$excl,]  # exclude subjects based on criteria of Miletic et al 2021
-# dat$subjects <- as.factor(dat$pp)
-# dat$s_left <- dat$appear_left
-# dat$s_right <- dat$appear_right
-# dat$p_left <- ifelse(dat$s_left==dat$low_stim, dat$low_stim_prob, dat$high_stim_prob)
-# dat$p_right <- ifelse(dat$s_right==dat$low_stim, dat$low_stim_prob, dat$high_stim_prob)
-# dat$R <- factor(dat$choiceDirection, levels=c('left', 'right'))
-# dat$S <- factor(ifelse(dat$p_left>dat$p_right, 'left', 'right'), levels=c('left', 'right'))
-# dat <- dat[!is.na(dat$R),] # remove NA-responses
-# dat <- dat[dat$rt>.15,] # remove too fast responses
-# dat$trials <- dat$TrialNumber
-# dat$reward <- dat$outcome/100
-# dat <- dat[,c('subjects', 'trials', 'S', 'R', 'rt', 'reward', 's_left', 's_right', 'p_left', 'p_right', 'trialBin')]
-# head(dat)
-# samplers_fn <- file.path(wd, './samples/rl_exp1.RData')
+# Dataset 1 ---------------------------------------------------------------
+dat <- EMC2:::loadRData(file.path(wd, 'datasets/data_exp1.RData'))
+dat <- dat[!dat$excl,]  # exclude subjects based on criteria of Miletic et al 2021
+dat$subjects <- as.factor(dat$pp)
+dat$s_left <- dat$appear_left
+dat$s_right <- dat$appear_right
+dat$p_left <- ifelse(dat$s_left==dat$low_stim, dat$low_stim_prob, dat$high_stim_prob)
+dat$p_right <- ifelse(dat$s_right==dat$low_stim, dat$low_stim_prob, dat$high_stim_prob)
+dat$R <- factor(dat$choiceDirection, levels=c('left', 'right'))
+dat$S <- factor(ifelse(dat$p_left>dat$p_right, 'left', 'right'), levels=c('left', 'right'))
+dat <- dat[!is.na(dat$R),] # remove NA-responses
+dat <- dat[dat$rt>.15,] # remove too fast responses
+dat$trials <- dat$TrialNumber
+dat$reward <- dat$outcome/100
+dat <- dat[,c('subjects', 'trials', 'S', 'R', 'rt', 'reward', 's_left', 's_right', 'p_left', 'p_right', 'trialBin')]
+head(dat)
+samplers_fn <- file.path(wd, './samples/dat_exp1_full.RData')
 
 
-## Alternatively, load a reversal learning paradigm (similar to experiment 3 in Miletic et al (2021) Elife)
-Smatch_prereversal <- function(d) {
-  # this figures out which responses correspond to the symbol that had the high pay-off probability at the start of the experiment.
-  tmp <- d[!duplicated(d[,c('s_left', 'p_left')]),]
-  tmp$correct_symbols <- ifelse(tmp$p_left>tmp$p_right, tmp$s_left, tmp$s_right)
-  correct_symbols_prereversal <- tmp[!duplicated(tmp$s_left),'correct_symbols']
-  return(d$Rs %in% correct_symbols_prereversal)
+# function to generate 'rewards'
+feedback_generator <- function(d) {
+  p_chosen <- ifelse(d$R=='left', d$p_left, d$p_right)
+  rbinom(1:nrow(d), 1, p_chosen)
+  # alternatively, map symbol to reward probability or reward function here.
+  # can change trialwise/subjectwise etc
 }
 
-dat <- EMC2:::loadRData(file.path(wd, 'datasets/dataset-trondheim_task-revl.RData'))
-dat$S <- NA
-dat[dat$p_left>dat$p_right,'S'] <- 'left'
-dat[dat$p_left<dat$p_right,'S'] <- 'right'
-dat$S <- factor(dat$S, levels=levels(dat$R))
-dat$Smatchprerev <- Smatch_prereversal(dat)
-dat <- dat[,c('subjects', 'trials', 'S', 'R', 'rt', 'reward', 's_left', 's_right', 'p_left', 'p_right', 'Smatchprerev', 'trialNreversal', "Racc")]
-samplers_fn <- file.path(wd, './samples/rl_revl.RData')
-
-# Getting the dadm in the right format ------------------------------------
-# For RL paradigms, we need to use a combination of response-coding of accumulators (left/right)
-# and *stimulus/symbol-coding* of accumulators (mapping each accumulator onto a symbol that represents each choice option),
-RS <- function(d) {
-  ## which stimulus *symbol* was chosen?
-  ifelse(d$R=='left', d$s_left, d$s_right)
-}
-
-lRS <- function(d) {
-  ## For race models: In dadms, there's a column 'lR', which codes which latent response (left/right) each accumulator corresponds to.
-  ## In RL paradigms we also need to know to which latent response *symbol* the accumulator corresponds. That's lRS
-  factor(d[cbind(1:nrow(d), match(paste0('s_', d$lR), colnames(d)))])
-}
-
-Smatch <- function(d) {
-  ## which stimulus *symbol* was correct?
-  ifelse(d$p_left > d$p_right, d$s_left, d$s_right)
-}
-
-# this is a function generator that generates one column per symbol, with the appropriate structure in the dadm for updating.
-covariate_column_generator <- function(col_name) {
-  function(d) {
-    d[,col_name] <- NA
-    d[d$RS == col_name, col_name] <- d[d$RS == col_name, 'reward']
-    d[d$RS != d$lRS, col_name] <- NA
-    d[[col_name]]
-  }
-}
 all_symbols <- unique(c(dat$s_left, dat$s_right))
 make_covariate_columns <- setNames(lapply(all_symbols, covariate_column_generator), all_symbols)
 
 ## Make trend
-trend_RL <- make_trend(kernel='delta', base='lin', 
-                       cov_names=list(all_symbols), par_names='v',
-                       premap = FALSE, pretransform = FALSE)
+trend_RL <- make_trend(kernel='delta', base='lin', cov_names=list(all_symbols), par_names='v',
+                       premap = FALSE, pretransform = FALSE, filter_lR=FALSE)
+trend_RL$v$feedback_generator <- feedback_generator
 
 ## Make design
 design_RDM <- design(model=RDM,
                      data=dat,
                      matchfun=function(d) d$S == d$lR,
-                     functions=c(list(RS=RS, Smatch=Smatch, lRS=lRS), make_covariate_columns),
+                     functions=c(list(RS=RS, Scorrect=Scorrect, lS=lS), make_covariate_columns),
                      formula=list(B ~ 1, v ~ 1, t0 ~ 1),
-                     constants=c('v.q0'=0),    
-                     # don't try to estimate Q0 -- won't work. 
-                     # Assume it starts at 0 (unbiased)
+                     constants=c('v.q0'=0),    # don't try to estimate Q0 -- won't work. Assume it starts at 0 (unbiased)
+                     trend=trend_RL)
+
+samplers <- make_emc(dat, design=design_RDM, compress=FALSE)
+head(samplers[[1]]$data[[1]])
+
+samplers <- fit(samplers, iter=1000, cores_per_chain=10, cores_for_chains=3, fileName=samplers_fn)
+# Time difference of 8.635182 mins
+samplers <- EMC2:::loadRData(samplers_fn)
+plot_pars(samplers)
+
+ppC <- predict(samplers, n_cores=30, n_post = 100,
+              conditional_on_data=TRUE, return_covariates=TRUE, return_trialwise_parameters=FALSE)
+ppU <- predict(samplers, n_cores=30, n_post = 100,
+              conditional_on_data=FALSE, return_covariates=TRUE, return_trialwise_parameters=FALSE)
+
+plot_exp1(dat=dat,pp=ppC)
+plot_exp1(dat=dat,pp=ppU)
+
+
+# Dataset 3 = Reversal learning paradigm ---------------------------------------------------------------
+dat <- EMC2:::loadRData(file.path(wd, 'datasets/dataset-trondheim_task-revl.RData'))
+dat$S <- NA
+dat$RS <- RS(dat)  # figures out which symbol was chosen
+dat[dat$p_left>dat$p_right,'S'] <- 'left'
+dat[dat$p_left<dat$p_right,'S'] <- 'right'
+dat$S <- factor(dat$S, levels=levels(dat$R))
+dat$chosen_symbol_was_correct_prereversal <- Smatch_prereversal(dat)
+samplers_fn <- file.path(wd, './samples/dat_revl_full.RData')
+
+# This is some example code to find all reversals per subject -- it's a bit brute force but does the trick
+for(subject in unique(dat$subjects)) {
+  tmp <- dat[dat$subjects==subject,]
+  all_stimuli <- unique(c(tmp$s_left, tmp$s_right))
+  all_stimuli <- setNames(rep(NA, length(all_stimuli)), all_stimuli)
+  for(trial in 1:nrow(tmp)) {
+    sym_left <- tmp[trial,'s_left']
+    sym_right <- tmp[trial,'s_right']
+    p_left <- tmp[trial,'p_left']
+    p_right <- tmp[trial,'p_right']
+    if(is.na(all_stimuli[[sym_left]])) all_stimuli[[sym_left]] <- p_left
+    if(is.na(all_stimuli[[sym_right]])) all_stimuli[[sym_right]] <- p_right
+    tmp[trial,'hasReversed'] <- all_stimuli[[sym_left]] != p_left
+    all_stimuli[[sym_left]] <- p_left
+    all_stimuli[[sym_right]] <- p_right
+  }
+  n_reversal_per_set <- mean(aggregate(hasReversed~s_left, tmp, sum)[,2])*2
+  for(stim in names(all_stimuli)) {
+    for(reversal_n in 1:n_reversal_per_set) {
+      tmp2 <- tmp[tmp$s_left==stim | tmp$s_right==stim,]
+      reversal_trial <- which(tmp2$hasReversed)[reversal_n]
+      dat[dat$subjects==subject & (dat$s_left==stim | dat$s_right==stim), paste0('trialNrelativetoreversal',reversal_n)] <- 1:nrow(tmp2)-reversal_trial
+    }
+  }
+}
+## include additional columns for additional reversals if needed
+dat <- dat[,c('subjects', 'S', 'R', 'rt', 'reward', 's_left', 's_right', 'p_left', 'p_right', 'trialNrelativetoreversal1')]
+
+all_symbols <- unique(c(dat$s_left, dat$s_right))
+make_covariate_columns <- setNames(lapply(all_symbols, covariate_column_generator), all_symbols)
+
+## Make trend
+trend_RL <- make_trend(kernel='delta', base='lin', cov_names=list(all_symbols), par_names='v',
+                       premap = FALSE, pretransform = FALSE, filter_lR=FALSE)
+trend_RL$v$feedback_generator <- feedback_generator
+
+## Make design
+design_RDM <- design(model=RDM,
+                     data=dat,
+                     matchfun=function(d) d$S == d$lR,
+                     functions=c(list(RS=RS, Scorrect=Scorrect, lS=lS), make_covariate_columns),
+                     formula=list(B ~ 1, v ~ 1, t0 ~ 1),
+                     constants=c('v.q0'=0),    # don't try to estimate Q0 -- won't work. Assume it starts at 0 (unbiased)
                      trend=trend_RL)
 
 samplers <- make_emc(dat, design=design_RDM, compress=FALSE)
@@ -95,146 +130,18 @@ samplers <- fit(samplers, iter=1000, cores_per_chain=10, cores_for_chains=3, fil
 samplers <- EMC2:::loadRData(samplers_fn)
 plot_pars(samplers)
 
-pp <- predict(samplers, n_cores=6, conditional_on_data=TRUE)
+ppC <- predict(samplers, n_cores=30, n_post = 100,
+               conditional_on_data=TRUE, return_covariates=TRUE, return_trialwise_parameters=FALSE)
+ppU <- predict(samplers, n_cores=30, n_post = 100,
+               conditional_on_data=FALSE, return_covariates=TRUE, return_trialwise_parameters=FALSE)
 
-
-# If you loaded experiment 1, here's some plotting code -------------------
-## Aggregations for Exp 1
-dat$accuracy <- dat$S==dat$R
-pp$accuracy <- pp$S==pp$R
-dat$bin <- as.numeric(cut(dat$trials, breaks=10))
-pp$bin <- as.numeric(cut(pp$trials, breaks=10))
-
-# Part 1. Plot fit
-aggAccS <- aggregate(accuracy~subjects*bin, dat, mean)
-aggAccG <- aggregate(accuracy~bin, aggAccS, mean)
-
-aggRTS <- aggregate(rt~subjects*bin*accuracy, dat,quantile, c(0.1,.5,.9))
-aggRTG <- aggregate(rt~bin*accuracy, aggRTS, mean)
-
-# pp
-ppaggAccS <- aggregate(accuracy~subjects*bin*postn, pp, mean)
-ppaggAccG <- aggregate(accuracy~bin*postn, pp, mean)
-ppaggAcc <- aggregate(accuracy~bin, ppaggAccG, quantile, c(0.025, 0.5, 0.975))
-
-ppaggRTS <- aggregate(rt~subjects*bin*accuracy*postn, pp, quantile, c(0.1,.5,.9))
-ppaggRTG <- aggregate(rt~bin*accuracy*postn, ppaggRTS, mean)
-ppaggRT <- aggregate(cbind(`10%`,`50%`,`90%`)~bin*accuracy, ppaggRTG, quantile, c(0.025, 0.5, 0.975))
-
-## plot: 1. accuracy
-par(mfrow=c(1,3))
-plot(0,0,type='n', xlim=c(1,10), ylim=c(0.4,.9), ylab='', xlab='Trial bin', main='')#, xaxt=ifelse(condition_=='SPD', 's', 'n'))
-abline(h=seq(0,1,.1), col='lightgray', lty=2)
-polygon(c(1:10, 10:1), c(ppaggAcc$accuracy[,1],rev(ppaggAcc$accuracy[,3])),col=adjustcolor(2, alpha.f=.3), border = FALSE)
-lines(aggAccG$bin, aggAccG$accuracy, lwd=1.5)
-points(aggAccG$bin, aggAccG$accuracy, pch=19, lwd=1.5)
-
-# 2. RT (correct)
-plot(0,0,type='n', xlim=c(1,10), ylim=range(c(ppaggRT[,3:5],aggRTG[,3:5])), xlab='Trial bin', ylab='RT (s)', main='')#, xaxt=ifelse(condition_=='SPD', 's', 'n'))
-abline(h=seq(0,2,.1), col='lightgray', lty=2)
-for(quantile_ in c('10%', '50%', '90%')) {
-  polygon(c(1:10, 10:1), c(ppaggRT[ppaggRT$accuracy==1,quantile_][,'2.5%'],
-                           rev(ppaggRT[ppaggRT$accuracy==1,quantile_][,'97.5%'])),
-          col=adjustcolor(2, alpha.f=.3), border = FALSE)
-
-  lines(aggRTG$bin[aggRTG$accuracy==1], aggRTG[aggRTG$accuracy==1, quantile_], lwd=1.5) # data
-  points(aggRTG$bin[aggRTG$accuracy==1], aggRTG[aggRTG$accuracy==1, quantile_], pch=19, lwd=1.5) # data
-}
-
-plot(0,0,type='n', xlim=c(1,10), ylim=range(c(ppaggRT[,3:5],aggRTG[,3:5])), xlab='Trial bin', ylab='RT (s)', main='')#, xaxt=ifelse(condition_=='SPD', 's', 'n'))
-abline(h=seq(0,2,.1), col='lightgray', lty=2)
-for(quantile_ in c('10%', '50%', '90%')) {
-  polygon(c(1:10, 10:1), c(ppaggRT[ppaggRT$accuracy==0,quantile_][,'2.5%'],
-                           rev(ppaggRT[ppaggRT$accuracy==0,quantile_][,'97.5%'])),
-          col=adjustcolor(2, alpha.f=.3), border = FALSE)
-
-  lines(aggRTG$bin[aggRTG$accuracy==0], aggRTG[aggRTG$accuracy==0, quantile_], lwd=1.5) # data
-  points(aggRTG$bin[aggRTG$accuracy==0], aggRTG[aggRTG$accuracy==0, quantile_], pch=19, lwd=1.5) # data
-}
-
-
-
-# If you loaded the revl paradigm (experiment 3), here's some othe --------
-# aggregations for REVL ------------------------------------------------------------
-#pp$RS <- RS(pp)
-pp$acc <- pp$S==pp$R
-dat$acc <- dat$S==dat$R
-pp$Racc <- pp$acc==pp$Smatchprerev
-
-aggRT <- aggregate(rt~trialNreversal,dat,quantile, c(.1, .5,.9))
-aggRTpp <- aggregate(rt~trialNreversal, aggregate(rt~trialNreversal*postn, pp, quantile, c(.1, .5, .9)), quantile, c(.025, .5,.975))
-
-aggChoice <- aggregate(Racc~trialNreversal,dat,mean)
-aggChoicepp <- aggregate(Racc~trialNreversal, aggregate(Racc~trialNreversal*postn,pp,mean), quantile, c(0.025, .5, .975))
-
-par(mfrow=c(2,1))
-plot(aggChoice$trialNreversal, aggChoice$Racc, type='b', lwd=2, ylab='Choice = accurate prerev', xlab='Trial N (relative to reversal)')
-abline(v=0, lty=2)
-polygon(c(aggChoicepp$trialNreversal, rev(aggChoicepp$trialNreversal)),
-        c(aggChoicepp$Racc[,1], rev(aggChoicepp$Racc[,3])), col=adjustcolor(2, alpha.f=.4))
-
-plot(aggRT$trialNreversal, aggRT$rt[,2], type='b', lwd=2, ylab='RT (s)', xlab='Trial N (relative to reversal)')
-abline(v=0, lty=2)
-polygon(c(aggRTpp$trialNreversal, rev(aggRTpp$trialNreversal)),
-        c(aggRTpp$`50%`[,1], rev(aggRTpp$`50%`[,3])), col=adjustcolor(2, alpha.f=.4))
-
+plot_revl(dat=dat,pp=ppC)
+plot_revl(dat=dat,pp=ppU)
 
 
 
 # RL-DDM ------------------------------------------------------------------
+## to be implemented later
 
 
-
-
-# Debugging stuff ---------------------------------------------------------
-
-
-## Debugging
-p_vector <- sampled_pars(samplers)
-p_vector['B'] <- 1
-p_vector['v'] <- 0
-p_vector['t0'] <- log(.15)
-p_vector['v.B0'] <- 1
-p_vector['v.alpha'] <- .1
-
-#undebug(EMC2:::run_trend)
-debug(EMC2:::get_pars_matrix)
-debug(EMC2:::prep_trend)
-EMC2:::get_pars_matrix(p_vector, dadm=samplers[[1]]$data[[1]], model=samplers[[1]]$model())
-
-d_tmp <- d
-d_tmp$D <- NA
-
-d1 <- samplers[[1]]$data[[1]]
-d2 <- samplers[[1]]$data[[2]]
-dc <- rbind(d1, d2)
-
-#debug(EMC2:::run_trend)
-trend_pars_c <- t(replicate(nrow(dc), c('v.B0'=1, 'v.q0'=0.5, 'v.alpha'=.1)))
-out_R <- EMC2:::run_trend(dadm=dc, trend = trend_RL$v, param=rep(1, nrow(dc)), trend_pars = trend_pars)
-
-trend_pars1 <- t(replicate(nrow(d1), c('v.B0'=1, 'v.q0'=0.5, 'v.alpha'=.1)))
-trend_pars2 <- t(replicate(nrow(d2), c('v.B0'=1, 'v.q0'=0.5, 'v.alpha'=.1)))
-out_c <- c(EMC2:::run_trend_rcpp(data=d1, trend = trend_RL$v,
-                                 param=rep(1, nrow(d1)), trend_pars = trend_pars1),
-           EMC2:::run_trend_rcpp(data=d2, trend = trend_RL$v,
-                                 param=rep(1, nrow(d2)), trend_pars = trend_pars2))
-all(round(out_R[[1]],4) == round(out_c,4))
-head(out_R[[1]])
-head(out_c)
-
-#out_R <- out_R[[1]]
-tail(out_R[[1]][dc$subjects==8],30)
-tail(out_c[dc$subjects==8],30)
-
-out_R[[2]][dc$subjects==8,]
-# second subject?
-
-
-
-## posterior predictives -- generate feedback?
-debug(EMC2:::make_data)
-debug(EMC2:::make_data_unconditional)
-
-debug(EMC2:::run_trend)
 
