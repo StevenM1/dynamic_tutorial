@@ -1,3 +1,30 @@
+plot_trend <- function(p_vector, samplers, par_name, subject=1, 
+                       lM_filter=NULL, lR_filter=NULL, on_x_axis='trials',
+                        ...) {
+  dadm <- samplers[[1]]$data[[subject]]
+  updated <- EMC2:::get_pars_matrix(p_vector=p_vector,
+                                    dadm=dadm,
+                                    model=samplers[[1]]$model())
+  filter <- rep(TRUE, nrow(dadm))
+  if(!is.null(lM_filter)) filter <- filter & dadm$lM==lM_filter
+  if(!is.null(lR_filter)) filter <- filter & dadm$lR==lR_filter
+  
+  dots <- list(...)
+  if(!'xlab' %in% names(dots)) dots$xlab=on_x_axis
+  x <- dadm[filter, on_x_axis]
+  y <- updated[filter, par_name]
+  y <- y[order(x)]
+  x <- x[order(x)]
+  
+  full_args <- c(list(x=x,
+                      y=y,
+                      type='l', ylab=par_name), dots)
+  do.call(plot, full_args)
+  # plot(dadm[filter, on_x_axis],
+  #      , xlab=xlab, ...,
+  #      type='l', ylab=par_name)
+}
+
 # SM effects
 add_prev <- function(dat, n_hist, levels=c('l', 'r')) {
   for(hist_type in c('S', 'R')) {
@@ -8,7 +35,7 @@ add_prev <- function(dat, n_hist, levels=c('l', 'r')) {
   return(dat)
 }
 
-plot_history_effects <- function(dat, pp, n_hist=3) {
+plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3) {
   dat <- add_prev(dat, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
   pp <- add_prev(pp, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
   
@@ -25,61 +52,137 @@ plot_history_effects <- function(dat, pp, n_hist=3) {
   dat <- dat[!is.na(dat[,paste0('Sminus', n_hist)]),]
   pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
   
-  par(mfcol=c(3,2))
-  for(hist_type in c('stimuli', 'responses')) {
-    colN <- toupper(substr(hist_type,1,1))
-    prevD <- prevPP <- NULL
-    for(trial in 1:n_hist) {
-      prevD <- paste0(prevD, dat[,paste0(colN,'minus',trial)])
-      prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
-    }
-    dat$prev <- prevD
-    pp$prev <- prevPP
-    
-    # RTs ~ history. Aggregate: First by subject, then across subjects
-    agg1 <- aggregate(rt~subjects*R*prev, dat, mean)
-    agg2 <- aggregate(rt~R*prev, agg1, mean)
-    ## pp. Aggregate: First by subject, then across subjects, then CI across posteriors
-    agg1pp <- aggregate(rt~postn*subjects*R*prev, pp, mean)
-    agg2pp <- aggregate(rt~postn*R*prev, agg1pp, mean)
-    agg3pp <- aggregate(rt~R*prev, agg2pp, quantile, c(0.025, 0.975))
-    
-    # 1. RT ~ history
-    x <- 1:length(agg2$prev[agg2$R==is_Rone])
-    plot(x,agg2$rt[agg2$R==is_Rone], type='b', pch=4, lwd=2, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
-    points(x,agg2$rt[agg2$R!=is_Rone], type='b', pch=4, col=2, lwd=2)
-    axis(side=1, at=x, labels=agg2$prev[agg2$R!=is_Rone])
-    legend('topright', c(paste0('choice=', is_Rone), paste0('choice!=', is_Rone)), col=c(1,2), lwd=c(1,1), lty=c(1,1))
-    
-    arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,2], angle=90, code=3, length=0.025, col=1)
-    arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,2], angle=90, code=3, length=0.025, col=2)
-    
-    
-    # 2. Choice ~ history
-    agg3 <- aggregate(choice~subjects*prev, dat, mean)
-    agg4 <- aggregate(choice~prev, agg3, mean)
-    
-    agg3pp <- aggregate(choice~postn*subjects*prev, pp, mean)
-    agg4pp <- aggregate(choice~prev*postn, agg3pp, mean)
-    agg5pp <- aggregate(choice~prev, agg4pp, quantile, c(0.025, 0.975))
-    
-    ylim <- range(c(range(agg4$choice), range(agg5pp$choice)))
-    x <- 1:length(agg4$prev)
-    plot(x,agg4$choice, type='b', pch=4, lwd=2, xaxt='n', ylab=paste0('Choice == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=ylim)
-    axis(side=1, at=x, labels=agg4$prev)
-    abline(h=0.5)
-    # PP
-    arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,2], angle=90, code=3, length=0.025, col=1)
-    
-    # 3. Stimulus ~ history
-    agg5 <- aggregate(stim~subjects*prev, dat, mean)
-    agg6 <- aggregate(stim~prev, agg5, mean)
-    x <- 1:length(agg6$prev)
-    plot(x,agg6$stim, type='b', pch=4, lwd=2, xaxt='n', ylab=paste0('Stim == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=c(0.40, 0.60))
-    axis(side=1, at=x, labels=agg6$prev)
-    abline(h=0.5)
+  par(mfcol=c(1,2))
+#  for(hist_type in c('stimuli', 'responses')) {
+  colN <- toupper(substr(hist_type,1,1))
+  prevD <- prevPP <- NULL
+  for(trial in 1:n_hist) {
+    prevD <- paste0(prevD, dat[,paste0(colN,'minus',trial)])
+    prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
   }
+  dat$prev <- prevD
+  pp$prev <- prevPP
+  
+  # RTs ~ history. Aggregate: First by subject, then across subjects
+  agg1 <- aggregate(rt~subjects*R*prev, dat, mean)
+  agg2 <- aggregate(rt~R*prev, agg1, mean)
+  ## pp. Aggregate: First by subject, then across subjects, then CI across posteriors
+  agg1pp <- aggregate(rt~postn*subjects*R*prev, pp, mean)
+  agg2pp <- aggregate(rt~postn*R*prev, agg1pp, mean)
+  agg3pp <- aggregate(rt~R*prev, agg2pp, quantile, c(0.025, .5, 0.975))
+  
+  # 1. RT ~ history
+  x <- 1:length(agg2$prev[agg2$R==is_Rone])
+  plot(x,agg2$rt[agg2$R==is_Rone], pch=4, lwd=2, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
+  points(x,agg2$rt[agg2$R!=is_Rone], pch=4, col=2, lwd=2)
+  axis(side=1, at=x, labels=agg2$prev[agg2$R!=is_Rone])
+  legend('bottom', c(paste0('choice=', is_Rone), paste0('choice!=', is_Rone)), col=c(1,2), lwd=c(1,1), lty=c(1,1), bty='n')
+  
+  arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,3], angle=90, code=3, length=0.025, col=1)
+  arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,3], angle=90, code=3, length=0.025, col=2)
+  lines(x, agg3pp$rt[agg3pp$R==is_Rone,2], col=1)
+  lines(x, agg3pp$rt[agg3pp$R!=is_Rone,2], col=2)
+  
+  # 2. Choice ~ history
+  agg3 <- aggregate(choice~subjects*prev, dat, mean)
+  agg4 <- aggregate(choice~prev, agg3, mean)
+  
+  agg3pp <- aggregate(choice~postn*subjects*prev, pp, mean)
+  agg4pp <- aggregate(choice~prev*postn, agg3pp, mean)
+  agg5pp <- aggregate(choice~prev, agg4pp, quantile, c(0.025,.5, 0.975))
+  
+  ylim <- range(c(range(agg4$choice), range(agg5pp$choice)))
+  x <- 1:length(agg4$prev)
+  plot(x,agg4$choice, pch=4, lwd=2, xaxt='n', ylab=paste0('Choice/stimulus == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=ylim)
+  axis(side=1, at=x, labels=agg4$prev)
+  abline(h=0.5)
+  # PP
+  arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,3], angle=90, code=3, length=0.025, col=1)
+  lines(x=x, y=agg5pp[,2][,2], col=1)
+  
+  # 3. Stimulus ~ history
+  agg5 <- aggregate(stim~subjects*prev, dat, mean)
+  agg6 <- aggregate(stim~prev, agg5, mean)
+  x <- 1:length(agg6$prev)
+  points(x, agg6$stim, pch=4, lwd=2, col=2) # 
+  #lines(x=x, y=agg5pp[,2][,2], col=2)
+  axis(side=1, at=x, labels=agg6$prev)
+  abline(h=0.5)
+  legend('topright', c('Choice (data)', 'Stimulus', 'Model'), col=c(1,2,1), lwd=c(NA,NA,2), pch=c(4,4,NA), bty='n')
 }
+
+# plot_history_effects <- function(dat, pp, n_hist=3) {
+#   dat <- add_prev(dat, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
+#   pp <- add_prev(pp, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
+#   
+#   ## plot
+#   is_Rone <- levels(dat$R)[1]
+#   is_Sone <- levels(dat$S)[1]
+#   
+#   pp$choice <- pp$R==is_Rone
+#   dat$choice <- dat$R==is_Rone
+#   dat$stim <- dat$S==is_Sone
+#   pp$stim <- pp$S==is_Sone
+#   
+#   ## remove
+#   dat <- dat[!is.na(dat[,paste0('Sminus', n_hist)]),]
+#   pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
+#   
+#   par(mfcol=c(3,2))
+#   for(hist_type in c('stimuli', 'responses')) {
+#     colN <- toupper(substr(hist_type,1,1))
+#     prevD <- prevPP <- NULL
+#     for(trial in 1:n_hist) {
+#       prevD <- paste0(prevD, dat[,paste0(colN,'minus',trial)])
+#       prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
+#     }
+#     dat$prev <- prevD
+#     pp$prev <- prevPP
+#     
+#     # RTs ~ history. Aggregate: First by subject, then across subjects
+#     agg1 <- aggregate(rt~subjects*R*prev, dat, mean)
+#     agg2 <- aggregate(rt~R*prev, agg1, mean)
+#     ## pp. Aggregate: First by subject, then across subjects, then CI across posteriors
+#     agg1pp <- aggregate(rt~postn*subjects*R*prev, pp, mean)
+#     agg2pp <- aggregate(rt~postn*R*prev, agg1pp, mean)
+#     agg3pp <- aggregate(rt~R*prev, agg2pp, quantile, c(0.025, 0.975))
+#     
+#     # 1. RT ~ history
+#     x <- 1:length(agg2$prev[agg2$R==is_Rone])
+#     plot(x,agg2$rt[agg2$R==is_Rone], type='b', pch=4, lwd=2, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
+#     points(x,agg2$rt[agg2$R!=is_Rone], type='b', pch=4, col=2, lwd=2)
+#     axis(side=1, at=x, labels=agg2$prev[agg2$R!=is_Rone])
+# #    legend('topright', c(paste0('choice=', is_Rone), paste0('choice!=', is_Rone)), col=c(1,2), lwd=c(1,1), lty=c(1,1))
+#     
+#     arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,2], angle=90, code=3, length=0.025, col=1)
+#     arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,2], angle=90, code=3, length=0.025, col=2)
+#     
+#     
+#     # 2. Choice ~ history
+#     agg3 <- aggregate(choice~subjects*prev, dat, mean)
+#     agg4 <- aggregate(choice~prev, agg3, mean)
+#     
+#     agg3pp <- aggregate(choice~postn*subjects*prev, pp, mean)
+#     agg4pp <- aggregate(choice~prev*postn, agg3pp, mean)
+#     agg5pp <- aggregate(choice~prev, agg4pp, quantile, c(0.025, 0.975))
+#     
+#     ylim <- range(c(range(agg4$choice), range(agg5pp$choice)))
+#     x <- 1:length(agg4$prev)
+#     plot(x,agg4$choice, type='b', pch=4, lwd=2, xaxt='n', ylab=paste0('Choice == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=ylim)
+#     axis(side=1, at=x, labels=agg4$prev)
+#     abline(h=0.5)
+#     # PP
+#     arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,2], angle=90, code=3, length=0.025, col=1)
+#     
+#     # 3. Stimulus ~ history
+#     agg5 <- aggregate(stim~subjects*prev, dat, mean)
+#     agg6 <- aggregate(stim~prev, agg5, mean)
+#     x <- 1:length(agg6$prev)
+#     plot(x,agg6$stim, type='b', pch=4, lwd=2, xaxt='n', ylab=paste0('Stim == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=c(0.40, 0.60))
+#     axis(side=1, at=x, labels=agg6$prev)
+#     abline(h=0.5)
+#   }
+# }
 
 ## Spectrum
 load_save_spectrum <- function(dat, dat_fn, by.postn=FALSE, detrend, demean, overwrite=FALSE) {

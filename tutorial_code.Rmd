@@ -7,6 +7,21 @@ output:
     highlight: pygments
     includes:
       in_header: preamble.tex
+header-includes:
+  - \usepackage[framemethod=tikz]{mdframed}
+  - \definecolor{shadecolor}{RGB}{230,235,255}
+  - |
+    \mdfdefinestyle{rcode}{
+      backgroundcolor = shadecolor,
+      linecolor       = gray,
+      linewidth       = .5pt,     % stronger border
+      roundcorner     = 1pt,
+      innerleftmargin = 4pt,       % generous padding
+      innerrightmargin= 4pt,
+      innertopmargin  = 2pt,
+      innerbottommargin = 2pt
+    }
+    \renewenvironment{Shaded}{\begin{mdframed}[style=rcode]}{\end{mdframed}}
 ---
 
 
@@ -63,7 +78,7 @@ design_DDM <- design(model=DDM,
                  formula=list(Z ~ 1, v ~ S, a~1, t0 ~ 1))
 ```
 
-## Trend specification
+# Trend specification
 Both the descriptive trends and the formal mechanisms of dynamics work through `trend` objects in *EMC2*. In this object, you specify (1) the covariate of interest (e.g., time on task), (2) a kernel to apply to the covariate (e.g., linear, power, exponential, polynomial, or delta rule), and (3) which decision parameter is informed by the resulting covariate, and (4) the functional form of the mapping between the resulting covariate and the decision parameters, referred to as the 'base'. The `trend_help()` function gives an overview of the options:
 
 ```{r trend_help}
@@ -220,9 +235,9 @@ plot_trend(p_vector_decr, samplers=samplers_decr,
 Note that the interpretation of the exponent (`B.e_ei` or `B.e_ed`) depends on the direction: In the increasing case, it corresponds to the asymptote; in the decreasing case, to the intercept.
 
 \begin{tcolorbox}[title=Advanced note: Enforcing a direction]
-Having both increasing and decreasing kernels may appear redundant, since the direction of the effect can also be flipped by the `w` parameter in the `lin` base. However, having both increasing and decreasing kernels makes it easy to enforce the direction of an effect. For example, we could hypothesize that `v\_lMd` increases sharply over the first few trials due to practice effects, and then stabilizes. When used in combination with the `lin` base, the model would have the flexibility to find both increases and decreases, even though our hypothesis only allows for increases, not decreases. 
+Having both increasing and decreasing kernels may appear redundant, since the direction of the effect can also be flipped by the `w` parameter in the `lin` base. However, having both increasing and decreasing kernels facilitates enforcing a directional effect. For example, one might hypothesize that `v\_lMd` increases sharply over the first few trials due to practice effects, and then stabilizes. An increase could be implemented with `exp\_incr`, but if the sampler converges on negative values of `w` of the base, the resulting trend is actually decreasing rather than increasing.
 
-We can force the sampler to find only increases by applying an exponential transform to the weight parameter `w` of the linear base. Note that this transformation needs to be applied \emph{prior} to the application of the trend. For this reason, this is provided as a `pre\_transform` in `design()`:
+We can force the sampler to sample only increasing trends by restricting the range of `w`. This can be done by sampling `w` on the log-scale, and transforming it to the natural scale prior to estimating the trend. Note that this transformation thus needs to occur before estimating the trend. As such, it cannot be included as a regular `transform` in `design()` (as these are applied after mapping), but instead it can be included as a `pre\_transform`:
 
 \end{tcolorbox}
 ```{r exponential_direction}
@@ -238,26 +253,26 @@ design_exp_incr <- design(model=RDM,
                          formula=list(B ~ 1, v ~ lM, t0 ~ 1),
                          trend=trend_exp_incr)
 samplers_incr <- make_emc(dat, design_exp_incr)
-p_vector1 <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=-1, 'v_lMd.d_ei'=2)
-p_vector2 <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=0, 'v_lMd.d_ei'=2)
-p_vector3 <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=1, 'v_lMd.d_ei'=2)
+p_vector1 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=-1, 'v_lMd.d_ei'=2)
+p_vector2 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=0, 'v_lMd.d_ei'=2)
+p_vector3 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=1, 'v_lMd.d_ei'=2)
 
 par(mfcol=c(2,3))
 plot_trend(p_vector1, samplers=samplers_incr, par_name='v', 
-           subject=1, lM_filter=TRUE, main='v correct accumulator')
+           subject=1, lM_filter=TRUE, main='v correct accumulator', ylim=c(3.5,5))
 plot_trend(p_vector1, samplers=samplers_incr, par_name='v', 
-           subject=1, lM_filter=FALSE, main='v incorrect accumulator')
+           subject=1, lM_filter=FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
 plot_trend(p_vector2, samplers=samplers_incr, par_name='v', 
-           subject=1, lM_filter=TRUE, main='v correct accumulator')
+           subject=1, lM_filter=TRUE, main='v correct accumulator', ylim=c(3.5,5))
 plot_trend(p_vector2, samplers=samplers_incr, par_name='v', 
-           subject=1, lM_filter=FALSE, main='v incorrect accumulator')
+           subject=1, lM_filter=FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
 plot_trend(p_vector3, samplers=samplers_incr, par_name='v', 
-           subject=1, lM_filter=TRUE, main='v correct accumulator')
-plot_trend(p_vector2, samplers=samplers_incr, par_name='v', 
-           subject=1, lM_filter=FALSE, main='v incorrect accumulator')
+           subject=1, lM_filter=TRUE, main='v correct accumulator', ylim=c(3.5,5))
+plot_trend(p_vector3, samplers=samplers_incr, par_name='v', 
+           subject=1, lM_filter=FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
 ```
 \begin{tcolorbox}
-Note that, whatever value of `v\_lMd.w` the sampler finds, it results in an increasing difference between drift rates.
+In this set-up, no matter the value of `v\_lMd.w` the between-accumulator difference in drift rates increases over time.
 \end{tcolorbox}
 
 So far, we only inspected time on task as defined by trial number. Other options include time on task within block (e.g., short breaks between trials could cause an increased threshold for the first few trials in each block), or the number of times a specific stimulus type has been shown. Furthermore, the parameters describing the trend could differ between blocks or even stimulus types. To test such hypotheses, we can allow the trend parameters themselves to vary with experimental factors, as defined in `formula` in `design()`. The example data does not have stimulus type recorded, and all trials were run in a single block, but for demonstrative purposes we can simulate such effects:
@@ -266,11 +281,14 @@ So far, we only inspected time on task as defined by trial number. Other options
 # simulate block number (assume 3 blocks)
 dat$block <- as.factor(as.numeric(cut(dat$trials, breaks=3)))
 for(subject in unique(dat$subjects)) {
-  dat[dat$subjects==subject,'trial_in_block'] <- ave(seq_along(dat[dat$subjects==subject,'block']), dat[dat$subjects==subject,'block'], FUN = seq_along)/1000
+  dat[dat$subjects==subject,'trial_in_block'] <- ave(
+    seq_along(dat[dat$subjects==subject,'block']),
+    dat[dat$subjects==subject,'block'], FUN = seq_along)/1000
 }
 # simulate presented digit
 dat$stimulus_number <- sample(c(1,2,3,4,6,7,8,9), size=nrow(dat), replace=TRUE)
-dat$stimulus_repetition <- ave(seq_along(dat$stimulus_number), dat$stimulus_number, FUN = seq_along)
+dat$stimulus_repetition <- ave(seq_along(dat$stimulus_number),
+                               dat$stimulus_number, FUN = seq_along)
 
 # combine two trends
 trends <- make_trend(par_names=c('B', 'v_lMd'), 
@@ -311,7 +329,7 @@ The left panel illustrate how the thresholds decrease within each block (at diff
 
 
 
-## Stimulus memory: Trend specification
+# Mechanisms of dynamics: Stimulus memory
 
 Models with formal mechanisms of dynamics rely on delta rules. To implement delta rules, we follow the same general logic as above—the delta rule is implemented as a kernel in `make_trend`. Let's implement the stimulus memory mechanism proposed by Miletic et al. (2025). Here, the decision maker keeps track of the probability that a stimulus is even (or odd). The covariate in this case is the stimulus, which we can recode as 1 (even) and -1 (odd). With the delta rule:
 
@@ -340,11 +358,12 @@ SM_trend <- make_trend(cov_names=c('Stim1'),
                         par_names='B_lRd',
                         bases='lin',
                         premap=TRUE,
-                        filter_lR=TRUE)  # see advanced notes for an explanation of what this does.
+                        filter_lR=TRUE)  
+        # see advanced notes for an explanation filter_lR
 design_RDM_SM <- design(model=RDM,
                          data=dat,
                          contrast=list(lM=ADmat, lR=ADmat),
-                         covariates='Stim1',   # specify relevant covariate columns
+                         covariates='Stim1',
                          matchfun=function(d) d$S==d$lR,
                          formula=list(B ~ lR, v ~ lM, t0 ~ 1),
                          trend=SM_trend,
@@ -407,7 +426,7 @@ In many applications when using dynamic EAMs, this is likely the intended behavi
 
 
 
-### Stimulus memory: DDM and drift rate effects
+## Stimulus memory: DDM and drift rate effects
 The example above replicates Miletic et al. (2025) by assuming an RDM and assuming that stimulus memory causes a threshold (start point) bias. *EMC2* is flexibly designed to implement your own hypotheses. For example, we can propose a DDM instead and hypothesize that drift rates rather than start points are biased. This can be implemented as follows:
 
 ```{r ddm_example, eval=FALSE}
@@ -446,7 +465,7 @@ compare(sList=list(rdm=get(load('./samples/ds1_SMB.RData')),
                    ddm=get(load('./samples/ds1_SMv_DDM.RData'))))
 ```
 
-## Accuracy memory: Trend specification
+# Mechanisms of dynamics: Accuracy memory
 Accuracy memory follows the same logic as above, with a different covariate (errors) and a different parameter (urgency, v). Errors are the inverse of accuracy; they are 0 when the response matches the stimulus, and 1 otherwise. Unlike the presented stimulus, accuracy/error is not a static property of the experimental design but depends on the observed behavior. This also means that, when simulating behavior, accuracy needs to be re-calculated based on the newly simulated data.
 
 For this reason, it is useful to have *EMC2* calculate accuracy with a function rather than specifying it in the dataframe (in which case it would be treated as a static experimental factor and assumed fixed across simulations). The same function is applied when generating posterior predictives, so the accuracy is correctly determined in that phase.
@@ -458,7 +477,7 @@ AM_trend <- make_trend(cov_names='error',
                         par_names='v',
                         bases='lin',
                         premap=TRUE,
-                        filter_lR=TRUE)  # see advanced notes for an explanation of what this does.
+                        filter_lR=TRUE)
 design_RDM_AM <- design(model=RDM,
                          data=dat,
                          contrast=list(lM=ADmat, lR=ADmat),
@@ -621,7 +640,7 @@ This seems to have helped, but perhaps ignoring the slow increase in thresholds 
 *** MULTIPLE TRENDS ON ONE PARAMETER CANNOT BE DONE YET ***
 
 
-## Fluency memory: Trend specification
+### Special case: Fluency memory
 Fluency memory is a formalization of the idea that participants adjust their behavior according to perceived difficulty. To estimate perceived difficulty, we rely on a few simplifying assumptions: participants can quantify (1) their thresholds, and (2) their response time. In race models, the ratio of threshold over response time constitutes a measure of mean speed, which can be used as a proxy for difficulty. After all, we expect processing efficiency to be lower for difficult trials than for easy trials. Formally, $Q_{FM,t+1}=Q_{FM,t}+\alpha_{FM}(b_{t}/rt_{t}-Q_{FM,t})$.
 Contrary to stimulus and accuracy memory, fluency memory is a very specific effect, and its implementation is not very flexible. It can only work for race models; it must influence thresholds; and the thresholds should be estimated on the natural scale. *EMC2* implements it as a separate kernel `deltab` with covariate `rt`:
 
