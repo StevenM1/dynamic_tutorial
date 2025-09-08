@@ -54,7 +54,7 @@ print(head(dat))
 
 Here, `subjects` refers to subject number, `S` to the presented stimulus (even/odd), `R` the response (even/odd), and `rt` the response time in seconds.
 
-# Baseline models
+### Baseline models
 
 We begin by setting up the 'static' baseline models without structured trial-by-trial variability. For a comprehensive tutorial on specifying designs in *EMC2*, please refer to the *EMC2* tutorial [ref]. We will set up two baseline models: first using a racing diffusion model (RDM), and then using a diffusion decision model (DDM). In the RDM, we model drift rates with a mean-difference parametrization. The `mapped_pars()` function is useful for tracking how parameter vectors are mapped onto each design cell:
 
