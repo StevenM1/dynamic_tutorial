@@ -14,7 +14,9 @@ wgm$S01[wgm$S==levels(wgm$S)[1]] <- -1
 wgm$S01[wgm$S==levels(wgm$S)[2]] <- 1
 
 ## Make design
-trend_SM=make_trend(kernel='delta', base='lin', cov_names ='S01', par_names='B_lRd', premap = TRUE, pretransform = FALSE, filter_lR=TRUE)
+trend_SM=make_trend(kernel='delta', base='lin', cov_names='S01', 
+                    par_names='B_lRd', 
+                    premap=TRUE, pretransform=FALSE, filter_lR=TRUE)
 trend_SM$B_lRd$trend_pnames <- c('w_SM', 'q0_SM', 'alpha_SM')
 # Note that we recoded 'stimulus' to [-1, 1]; so the mapping can be linear B = B_0 + w*Q_SM.
 # Alternatively, you could code S as [0, 1] and the mapping could be centered: B = B_0 + w*(Q_SM - 0.5). In that case, w will be twice as large, as Q_SM is halved.
@@ -49,6 +51,7 @@ samplers <- EMC2:::loadRData(file.path(wd, './samples/wgm_SM.RData'))
 
 check(samplers)    # learning rate alpha tends to be difficult to estimate
 plot_pars(samplers)
+pars <- parameters(samplers)
 
 ## Visualize estimated Q-values. E.g., take subject 1
 all_pars <- parameters(samplers, selection='alpha')
@@ -65,7 +68,7 @@ pp <- predict(samplers, n_cores=20)
 plot_cdf(wgm, pp, factors = c('S'))  # Overall fit?
 
 ## Convenience function to plot the stimulus history effects
-plot_history_effects(wgm,pp)
+plot_history_effects(wgm,pp, n_hist = 3)
 # this does a fairly good job at capturing the stimulus memory effects on choices, and also RTs with some remaining misfit
 
 # Additionally, we can ask predict() to return the updated covariates
@@ -98,7 +101,8 @@ samplers <- make_emc(wgm, design=design_DDM, compress=FALSE)
 samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3, fileName=file.path(wd, './samples/wgm_SM_DDM.RData'))
 samplers <- EMC2:::loadRData(file.path(wd, './samples/wgm_SM_DDM.RData'))
 
-pp <- predict(samplers, n_cores=20)
+#debug(make_data)
+pp <- predict(samplers, n_cores=10, conditional_on_data=TRUE, return_covariates=TRUE)
 plot_cdf(wgm, pp, factors = c('S'))  # Overall fit?
 
 plot_history_effects(wgm,pp)

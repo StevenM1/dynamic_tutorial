@@ -13,7 +13,9 @@ ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
 # The (1-Q_AM) parametrisation is currently not possible in EMC2, but we can reverse the logic, and estimate *error rate* directly
 isError <- function(d) d$S!=d$R
 # and now we can apply u = u_0 + w_AM*(Q_AM), with Q_AM tracking errors.
-trend_AM=make_trend(kernel='delta', base='lin', cov_names ='error', par_names='v', premap = TRUE, pretransform = FALSE, filter_lR=TRUE)
+trend_AM=make_trend(kernel='delta', base='lin', cov_names ='error', 
+                    par_names='v', 
+                    premap = TRUE, pretransform = FALSE, filter_lR=TRUE)
 trend_AM$v$trend_pnames <- c('w_AM', 'q0_AM', 'alpha_AM')
 
 ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
@@ -33,7 +35,8 @@ samplers <- EMC2:::loadRData(file.path(wd, 'samples/wgm_AM.RData'))
 
 check(samplers)    # learning rate alpha tends to be difficult to estimate
 plot_pars(samplers)
-
+#credint(samplers)
+#pnorm(0.694)
 
 # Here, we introduce something new. If you are adapting to a quantity that is an output of the model (e.g., RT, accuracy),
 # you need to simulate posterior predictives by looping over trials. 
@@ -66,7 +69,8 @@ plotPES(data_PES=data_PES$average, pp_PES=pp2_PES$average,
 
 # Or in a DDM -------------------------------------------------------------
 ## Make design
-trend_AM_DDM=make_trend(kernel='delta', base='lin', cov_names ='error', par_names='a', premap = TRUE, pretransform = FALSE)
+trend_AM_DDM=make_trend(kernel='delta', base='lin', cov_names ='error', par_names='a', 
+                        premap = TRUE, pretransform = FALSE)
 trend_AM_DDM$a$trend_pnames <- c('w_AM', 'q0_AM', 'alpha_AM')
 
 Smat <- matrix(c(-1,1), nrow = 2,dimnames=list(NULL,"dif"))

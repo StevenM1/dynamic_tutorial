@@ -8,9 +8,11 @@ wgm <- EMC2:::add_trials(wgm)
 ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
 
 # FM ----------------------------------------------------------------------
-trend_FM=make_trend(kernel='deltab', base='lin',
+trend_FM=make_trend(kernel='deltab', 
+                    base='lin',
                     cov_names ='rt',
                     par_names='B', premap = TRUE, pretransform = FALSE, filter_lR=TRUE)
+
 # trend_FM
 ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
 design <- design(model=RDM,

@@ -118,11 +118,11 @@ design_RDM_lin_B <- design(model=RDM,
 Note that we are now sampling one extra parameter compared to before, `B.w`, which is the weight of the influence of trial number on thresholds. In $B_t = B_0 + B.w*trial$. Let's define a set of parameters and look at the resulting trial-by-trial thresholds:
 
 ```{r linear_trend_example_plot}
-samplers <- make_emc(dat, design=design_RDM_lin_B)
+emc <- make_emc(dat, design=design_RDM_lin_B)
 p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
 
 # Visualize trend
-plot_trend(p_vector, samplers=samplers, 
+plot_trend(p_vector, emc=emc, 
            par_name='B', subject=1, 
            lR_filter='odd', main='Threshold for odd')
 ```
@@ -150,10 +150,10 @@ design_RDM_lin_B2 <- design(model=RDM,
                          trend=lin_trend2)       # add trend
 # note how the trend is added after the transformation
 mapped_pars(design_RDM_lin_B2)  
-samplers <- make_emc(dat, design=design_RDM_lin_B2)
+emc <- make_emc(dat, design=design_RDM_lin_B2)
 p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
 # Visualize trend
-plot_trend(p_vector, samplers=samplers, 
+plot_trend(p_vector, emc=emc, 
            par_name='B', subject=1, 
            lR_filter='odd', main='Threshold for odd')
 ```
@@ -177,11 +177,11 @@ design_RDM_lin_B3 <- design(model=RDM,
                          trend=lin_trend3)       # add trend
 # note how the transformation is no longer applied at all
 mapped_pars(design_RDM_lin_B3)
-samplers <- make_emc(dat, design=design_RDM_lin_B3)
+emc <- make_emc(dat, design=design_RDM_lin_B3)
 p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
 
 # visualize trend
-plot_trend(p_vector, samplers=samplers, 
+plot_trend(p_vector, emc=emc, 
            par_name='B', subject=1, 
            lR_filter='odd', main='Threshold for odd')
 ```
@@ -192,23 +192,23 @@ With all that in mind, we can now start sampling our first model. We set a N(2,0
 
 ```{r linear_trend_fit_prep, eval=TRUE}
 prior_linB <- prior(design_RDM_lin_B3, mu_mean=c(B=2, B.w=0), mu_sd=c(B=0.5,B.w=0.1))
-samplers <- make_emc(dat, design=design_RDM_lin_B3, prior_list = prior_linB)
-plot(samplers, prior=TRUE)
+emc <- make_emc(dat, design=design_RDM_lin_B3, prior_list = prior_linB)
+plot(emc, prior=TRUE)
 ```
 
 ```{r linear_trend_fit_fit, eval=FALSE}
-samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
                 fileName='./samples/ds1_linB.RData')
 ```
 
 ```{r linear_trend_fit_load, eval=TRUE, include=FALSE}
-samplers <- get(load('./samples/ds1_linB.RData'))
+emc <- get(load('./samples/ds1_linB.RData'))
 ```
 
 ```{r linear_trend_fit_check}
-check(samplers)
-plot_pars(samplers)
-credint(samplers)
+check(emc)
+plot_pars(emc)
+credint(emc)
 ```
 
 On a group-level, we find a small (not credible) positive `B.w` -- on average, in this dataset, thresholds appear to increase by \~0.070 over the course of 1000 trials. We can now generate posterior predictives, and while doing that, ask *EMC2* to return the mapped and transformed parameters, which will allow us to visualize the fitted thresholds over trials:
@@ -216,10 +216,10 @@ On a group-level, we find a small (not credible) positive `B.w` -- on average, i
 ```{r plot_linear_trend_fitted}
 # By setting return_trialwise_parameters to TRUE, we obtain the parameters 
 # of each iteration as an attribute in the returned object (pp).
-pp <- predict(samplers, n_cores=10, return_trialwise_parameters=TRUE)
+pp <- predict(emc, n_cores=10, return_trialwise_parameters=TRUE)
 par(mfrow=c(2,3))
 for(subject in 1:6) {
-  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+  plot_trend(attr(pp, 'trialwise_parameters'), emc=emc, 
              par_name='B', subject=subject, lR_filter='odd', main=subject)
 }
 ```
@@ -228,7 +228,7 @@ Here, the green shaded area indicated the 95\% credible interval of the posterio
 ```{r plot_linear_trend_fitted_lines}
 par(mfrow=c(2,3))
 for(subject in 1:6) {
-  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+  plot_trend(attr(pp, 'trialwise_parameters'), emc=emc, 
              par_name='B', subject=subject, lR_filter='odd', 
              main=subject, pp_shaded=FALSE)
 }
@@ -259,16 +259,16 @@ design_exp_decr <- design(model=RDM,
                          transform=list(func=c('B'='identity')),
                          formula=list(B ~ 1, v ~ lM, t0 ~ 1),
                          trend=trend_exp_decr)
-samplers_incr <- make_emc(dat, design_exp_incr)
-samplers_decr <- make_emc(dat, design_exp_decr)
+emc_incr <- make_emc(dat, design_exp_incr)
+emc_decr <- make_emc(dat, design_exp_decr)
 
 p_vector_incr <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1, 'B.d_ei'=2)
 p_vector_decr <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1, 'B.d_ed'=2)
 
 par(mfrow=c(1,2))
-plot_trend(p_vector_incr, samplers=samplers_incr, 
+plot_trend(p_vector_incr, emc=emc_incr, 
            par_name='B', subject=1, lR_filter='odd')
-plot_trend(p_vector_decr, samplers=samplers_decr, 
+plot_trend(p_vector_decr, emc=emc_decr, 
            par_name='B', subject=1, lR_filter='odd')
 ```
 
@@ -294,23 +294,23 @@ design_exp_incr <- design(model=RDM,
                          formula=list(B ~ 1, v ~ lM, t0 ~ 1),
                          trend=trend_exp_incr)
 mapped_pars(design_exp_incr)
-samplers_incr <- make_emc(dat, design_exp_incr)
+emc_incr <- make_emc(dat, design_exp_incr)
 p_vector1 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=-1, 'v_lMd.d_ei'=2)
 p_vector2 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=0, 'v_lMd.d_ei'=2)
 p_vector3 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=1, 'v_lMd.d_ei'=2)
 
 par(mfcol=c(2,3))
-plot_trend(p_vector1, samplers=samplers_incr, par_name='v', 
+plot_trend(p_vector1, emc=emc_incr, par_name='v', 
            subject=1, lM_filter=TRUE, main='v correct accumulator', ylim=c(3.5,5))
-plot_trend(p_vector1, samplers=samplers_incr, par_name='v', 
+plot_trend(p_vector1, emc=emc_incr, par_name='v', 
            subject=1, lM_filter=FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
-plot_trend(p_vector2, samplers=samplers_incr, par_name='v', 
+plot_trend(p_vector2, emc=emc_incr, par_name='v', 
            subject=1, lM_filter=TRUE, main='v correct accumulator', ylim=c(3.5,5))
-plot_trend(p_vector2, samplers=samplers_incr, par_name='v', 
+plot_trend(p_vector2, emc=emc_incr, par_name='v', 
            subject=1, lM_filter=FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
-plot_trend(p_vector3, samplers=samplers_incr, par_name='v', 
+plot_trend(p_vector3, emc=emc_incr, par_name='v', 
            subject=1, lM_filter=TRUE, main='v correct accumulator', ylim=c(3.5,5))
-plot_trend(p_vector3, samplers=samplers_incr, par_name='v', 
+plot_trend(p_vector3, emc=emc_incr, par_name='v', 
            subject=1, lM_filter=FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
 ```
 
@@ -348,7 +348,7 @@ design_multitrend <- design(model=RDM,
                                                'B'='identity')),
                          formula=list(B ~ 1, v ~ lM, t0 ~ 1, `B.d_ed`~block),
                          trend=trends)
-samplers_multitrend <- make_emc(dat, design_multitrend)
+emc_multitrend <- make_emc(dat, design_multitrend)
 
 # thresholds
 p_vector <- c('B'=1, 'v'=1, 'v_lMd'=2, 't0'=0.1, 
@@ -356,14 +356,14 @@ p_vector <- c('B'=1, 'v'=1, 'v_lMd'=2, 't0'=0.1,
               'v_lMd.w'=1, 'v_lMd.d_ei'=.2)
 
 par(mfcol=c(1,3))
-plot_trend(p_vector, samplers=samplers_multitrend, par_name='B', 
+plot_trend(p_vector, emc=emc_multitrend, par_name='B', 
            subject=1, lR_filter='odd', main='Thresholds', 
            xlab='Trial number')
-plot_trend(p_vector, samplers=samplers_multitrend, par_name='v', 
+plot_trend(p_vector, emc=emc_multitrend, par_name='v', 
            subject=1, lM_filter=TRUE, main='Drift rate (matching)',
            on_x_axis='stimulus_repetition', 
            xlab='Stimulus repetition', xlim=c(1,20))
-plot_trend(p_vector, samplers=samplers_multitrend, par_name='v', 
+plot_trend(p_vector, emc=emc_multitrend, par_name='v', 
            subject=1, lM_filter=TRUE, main='Drift rate (matching)',
            xlab='Trial number', xlim=c(1,20))
 mapped_pars(design_multitrend)
@@ -396,7 +396,7 @@ design_poly <- design(model=RDM,
                          formula=list(B ~ 1, v ~ lM, t0 ~ 1),
                          trend=trend_poly)
 mapped_pars(design_poly)
-samplers_poly <- make_emc(dat, design_poly)
+emc_poly <- make_emc(dat, design_poly)
 
 p_vector1 <- c('B'=1, 'v'=1, 'v_lMd'=2, 't0'=0.1, 
               'B.d1'=2, 'B.d2'=3, 'B.d3'=-5, 'B.d4'=-5)
@@ -408,16 +408,16 @@ p_vector4 <- c('B'=1, 'v'=1, 'v_lMd'=2, 't0'=0.1,
               'B.d1'=1, 'B.d2'=-3, 'B.d3'=-2, 'B.d4'=10)
 
 par(mfrow=c(2,2))
-plot_trend(p_vector1, samplers=samplers_poly, par_name='B', 
+plot_trend(p_vector1, emc=emc_poly, par_name='B', 
            subject=1, lR_filter='odd', main='Thresholds', 
            xlab='Trial number')
-plot_trend(p_vector2, samplers=samplers_poly, par_name='B', 
+plot_trend(p_vector2, emc=emc_poly, par_name='B', 
            subject=1, lR_filter='odd', main='Thresholds', 
            xlab='Trial number')
-plot_trend(p_vector3, samplers=samplers_poly, par_name='B', 
+plot_trend(p_vector3, emc=emc_poly, par_name='B', 
            subject=1, lR_filter='odd', main='Thresholds', 
            xlab='Trial number')
-plot_trend(p_vector4, samplers=samplers_poly, par_name='B', 
+plot_trend(p_vector4, emc=emc_poly, par_name='B', 
            subject=1, lR_filter='odd', main='Thresholds', 
            xlab='Trial number')
 ```
@@ -465,27 +465,27 @@ We can now apply a similar prior to B as above, and fit the model. Note that dat
 
 ```{r SM_fit_prep, eval=TRUE}
 prior_SMB <- prior(design_RDM_SM, mu_mean=c(B=2), mu_sd=c(B=0.5))
-samplers <- make_emc(dat, design=design_RDM_SM, prior_list = prior_SMB, compress=FALSE)
+emc <- make_emc(dat, design=design_RDM_SM, prior_list = prior_SMB, compress=FALSE)
 ```
 
 ```{r SM_fit_fit, eval=FALSE}
-samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
                 fileName='./samples/ds1_SMB.RData')
 ```
 
 ```{r SM_fit_load, eval=TRUE, include=FALSE}
-samplers <- get(load('./samples/ds1_SMB.RData'))
+emc <- get(load('./samples/ds1_SMB.RData'))
 ```
 
 ```{r SM_fit_check}
-check(samplers)
-plot_pars(samplers)
+check(emc)
+plot_pars(emc)
 ```
 
 We find excellent convergence properties. Note that learning rates are by default sampled on the probit scale, so if we want to know the mean learning rate, we need to map and transform the parameters first:
 
 ```{r SM_check_pars}
-credint(samplers, map=TRUE)
+credint(emc, map=TRUE)
 ```
 
 Hence, we find a group-wise mean learning rate of \~0.38, and the threshold of the odd accumulator is 0.323 lower than the threshold for the even accumulator if the participant has a $Q_{SM}$-value of 1.
@@ -493,7 +493,7 @@ Hence, we find a group-wise mean learning rate of \~0.38, and the threshold of t
 We can now check whether the SM mechanism can explain stimulus-history effects by plotting the RTs (by choice) and the probability of choosing left as a function of the previous three presented stimuli. First, generate posterior predictives:
 
 ```{r SM_pp, eval=FALSE}
-pp <- predict(samplers, n_cores=10, 
+pp <- predict(emc, n_cores=10, 
               # for plotting purposes below, these arguments are added:
               return_trialwise_parameters=TRUE, return_covariates=TRUE)
 save(pp, file='./ds1_SMB_pps.RData')
@@ -509,11 +509,11 @@ The left panel of this plot shows the mean RT as a function of the three previou
 The right panel shows the probability of choosing even (black) and the probability of the stimulus being even (red) as a function of local trial history. The black crosses demonstrates that participants are more likely (\~.55) to choose 'even' if the previous three trials were 'even'. The red circles are important as a quality check. If the stimuli are generated truly randomly, the red circles should be approximately at 0.5 in all cases. However, some experiments use pseudorandomization, which can lead to negative correlations in local stimulus histories. This can confound any stimulus history effects present in the human data. True stimulus history effects are those that are larger than the ones present in the data, e.g., visible as black crosses deviating stronger from 0.5 compared to red circles.
 
 \begin{tcolorbox}[title=Advanced note: filter\_lR]
-Under the hood, EMC2 works with data-augmented design matrices (\texttt{dadm}s). A \texttt{dadm} contains one row per accumulator per trial -- so for race models applied to two-alternative forced choice tasks, this will typically result in two rows per trial. We can inspect the \texttt{dadm} for the first subject in the samplers object to see that the covariate \texttt{Stim1} is indeed the same across accumulators in each trial:
+Under the hood, EMC2 works with data-augmented design matrices (\texttt{dadm}s). A \texttt{dadm} contains one row per accumulator per trial -- so for race models applied to two-alternative forced choice tasks, this will typically result in two rows per trial. We can inspect the \texttt{dadm} for the first subject in the emc object to see that the covariate \texttt{Stim1} is indeed the same across accumulators in each trial:
 \end{tcolorbox}
 
 ```{r }
-head(samplers[[1]]$data[[1]])
+head(emc[[1]]$data[[1]])
 ```
 
 \begin{tcolorbox}
@@ -529,10 +529,10 @@ As before, we can plot the trial-wise parameters with `plot_trend()`. Let's zoom
 ```{r trialwise_parameters_SM}
 par(mfcol=c(2,3))
 for(subject in 1:3) {
-  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+  plot_trend(attr(pp, 'trialwise_parameters'), emc=emc, 
              par_name='B', subject=subject, lR_filter='odd', main=paste0(subject, ' odd'),
              xlim=c(1,20))
-  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+  plot_trend(attr(pp, 'trialwise_parameters'), emc=emc, 
              par_name='B', subject=subject, lR_filter='even', main=paste0(subject, ' even'),
              xlim=c(1,20))
 }
@@ -543,7 +543,7 @@ Alternatively, we can plot the evolution of the Q-values themselves. Note that `
 ```{r trialwise_Qvalues_SM}
 par(mfcol=c(1,3))
 for(subject in 1:3) {
-  plot_trend(attr(pp, 'covariates'), samplers=samplers, 
+  plot_trend(attr(pp, 'covariates'), emc=emc, 
              par_name='B_lRd.q0', subject=subject,
              main=subject,
              xlim=c(1,20))
@@ -573,15 +573,15 @@ design_DDM <- design(model=DDM,
 
 # since v is estimated on the natural scale (in case of the DDM),
 # we do not need to change the transformations, and we can use the default priors.
-samplers <- make_emc(dat, design=design_DDM, compress=FALSE)
-samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
-                fileName='./samples/ds1_SMv_DDM.RData')
+emc <- make_emc(dat, design=design_DDM, compress=FALSE)
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+           fileName='./samples/ds1_SMv_DDM.RData')
 ```
 
 However, this does not appear to fit as well qualitatively and loses quantitative model comparisons:
 
 ```{r ddm_example_pp, eval=FALSE}
-pp_ddm <- predict(samplers, n_cores=10)
+pp_ddm <- predict(emc, n_cores=10)
 save(pp_ddm, file='./samples/ds1_SMv_DDM_pps.RData')
 ```
 
@@ -632,18 +632,18 @@ mapped_pars(design_RDM_AM)
 # the log-scale, and then exponentiated.
 # The cognitive interpretation is similar.
 
-samplers <- make_emc(dat, design=design_RDM_AM, compress=FALSE)
-samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
+emc <- make_emc(dat, design=design_RDM_AM, compress=FALSE)
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
                 fileName='./samples/ds1_AM.RData')
-credint(samplers)
+credint(emc)
 ```
 
 Accuracy memory can help explain error-related effects, like post-error slowing. To visualize, we can generate posterior predictives and then use a convenience function to plot mean RT as a function of trial number relative to an error. Note that, since the covariate in this case depends on observed behavior, we need to simulate data and determine the covariate one trial at a time. *EMC2* detects whether the covariate is `rt`, `R`, or the output of one of the functions provided to design. If it is, it automatically simulates data trial-by-trial. As vectorisation is not possible in this case, this way of simulating data is slower.
 
 ```{r AM_pp_gen, eval=FALSE}
-samplers <- get(load('./samples/ds1_AM.RData'))
+emc <- get(load('./samples/ds1_AM.RData'))
 
-pp <- predict(samplers, n_cores=10, conditional_on_data=FALSE)
+pp <- predict(emc, n_cores=10, conditional_on_data=FALSE)
 save(pp, file='./samples/ds1_AM_pps.RData')
 ```
 
@@ -652,20 +652,7 @@ load('./samples/ds1_AM_pps.RData')
 ```
 
 ```{r AM_pp_check}
-# needed for plotting
-pp$accuracy <- 1-pp$error
-dat$accuracy <- dat$S==dat$R
-
-# calculate post-error slowing statistics
-data_PES <- getErrorEffects(dat)
-pp_PES <- getErrorEffects(pp, mc.cores=10)
-
-# and plot with convenience function
-par(mfrow=c(1,1))
-plotPES(data_PES=data_PES$average, pp_PES=pp_PES$average,
-        mean_rt=mean(aggregate(rt~subjects,dat,mean)[,2]),
-        main='Error-related effects')
-
+plot_error_effects(dat, pp)
 ```
 
 Like in the case of stimulus memory, the accuracy memory mechanism can be adjusted to other EAMs like the DDM, and it can affect other parameters. The DDM does not have an urgency mechanism, but we could, for example, allow AM to affect thresholds. This trend can be specified as post-transform since the thresholds are the same across all design cells. So in this case, we can sample thresholds on the log scale, then transform to the natural scale, and then apply the trend.
@@ -686,16 +673,16 @@ design_DDM <- design(model=DDM,
                  constants=c('a.q0'=0),
                  trend=trend_AM_DDM)
 
-samplers <- make_emc(dat, design=design_DDM, compress=FALSE)
-samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
+emc <- make_emc(dat, design=design_DDM, compress=FALSE)
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
                 fileName='./samples/ds1_AMa_DDM.RData')
 ```
 
 However, this again does not appear to fit as well qualitatively, and loses model comparisons:
 
 ```{r ddm_example_fit_AM, eval=FALSE}
-samplers <- get(load('./samples/ds1_AMa_DDM.RData'))
-pp_ddm <- predict(samplers, n_cores=10, conditional_on_data=FALSE)
+emc <- get(load('./samples/ds1_AMa_DDM.RData'))
+pp_ddm <- predict(emc, n_cores=10, conditional_on_data=FALSE)
 save(pp_ddm, file='./samples/ds1_AMa_DDM_pps.RData')
 ```
 
@@ -704,20 +691,7 @@ load('./samples/ds1_AMa_DDM_pps.RData')
 ```
 
 ```{r ddm_AM_pp_check}
-
-# needed for plotting
-pp_ddm$accuracy <- 1-pp_ddm$error
-dat$accuracy <- dat$S==dat$R
-
-# calculate post-error slowing statistics
-data_PES <- getErrorEffects(dat)
-pp_ddm_PES <- getErrorEffects(pp_ddm, mc.cores=10)
-
-# and plot with convenience function
-par(mfrow=c(1,1))
-plotPES(data_PES=data_PES$average, pp_PES=pp_ddm_PES$average,
-        mean_rt=mean(aggregate(rt~subjects,dat,mean)[,2]),
-        main='Error-related effects')
+plot_error_effects(dat, pp)
 
 # and loses model comparisons again
 #compare(sList=list(rdm=get(load('./samples/ds1_AM.RData')),
@@ -728,9 +702,9 @@ plotPES(data_PES=data_PES$average, pp_PES=pp_ddm_PES$average,
 
 <!-- ```{r ddm_parameter_check} -->
 
-<!-- plot_pars(samplers) -->
+<!-- plot_pars(emc) -->
 
-<!-- credint(samplers) -->
+<!-- credint(emc) -->
 
 <!-- ``` -->
 
@@ -768,13 +742,13 @@ plotPES(data_PES=data_PES$average, pp_PES=pp_ddm_PES$average,
 
 <!--                  trend=trend_AM_DDM2) -->
 
-<!-- samplers <- make_emc(dat, design=design_DDM2, compress=FALSE) -->
+<!-- emc <- make_emc(dat, design=design_DDM2, compress=FALSE) -->
 
-<!-- samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3, -->
+<!-- emc <- fit(emc, cores_per_chain=6, cores_for_chains=3, -->
 
 <!--                 fileName='./samples/ds1_AMa2_DDM.RData') -->
 
-<!-- pp_ddm <- predict(samplers, n_cores=10, conditional_on_data=FALSE) -->
+<!-- pp_ddm <- predict(emc, n_cores=10, conditional_on_data=FALSE) -->
 
 <!-- save(pp_ddm, file='./samples/ds1_AMa2_DDM_pps.RData') -->
 
@@ -836,12 +810,12 @@ design_FM <- design(model=RDM,
                  constants=c('B.q0'=3, 's'=log(1)),            # Why 3? When fitting a static RDM, the mean fit threshold over mean RT ratio is very roughly 3 in this dataset. It serves as a reasonable place to start
                  trend=trend_FM)
 prior_FM <- prior(design_FM, mu_mean=c('B'=2), mu_sd=c('B'=0.5))
-samplers <- make_emc(dat, design=design_FM, compress=FALSE, prior_list=prior_FM)
+emc <- make_emc(dat, design=design_FM, compress=FALSE, prior_list=prior_FM)
 
-samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
                 fileName='samples/ds1_FM.RData')
-check(samplers)
-pp <- predict(samplers, n_cores=10, conditional_on_data=FALSE)
+check(emc)
+pp <- predict(emc, n_cores=10, conditional_on_data=FALSE)
 save(pp, file='./samples/ds1_FM_pps.RData')
 ```
 

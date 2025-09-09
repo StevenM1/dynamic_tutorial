@@ -13,7 +13,8 @@ wgm$S01[wgm$S==levels(wgm$S)[2]] <- 1
 
 # MS3 ---------------------------------------------------------------------
 # Now we can simply combine the previous trends in one model, and we have the MS3!
-trend_MS3=make_trend(kernel=c('delta', 'delta', 'deltab'), base=c('lin','lin', 'lin'),
+trend_MS3=make_trend(kernel=c('delta', 'delta', 'deltab'), 
+                     base=c('lin','lin', 'lin'),
                      cov_names =c('S01', 'error', 'rt'),
                      par_names=c('B_lRd', 'v', 'B'),
                      premap = TRUE, pretransform = FALSE, filter_lR=TRUE)
@@ -41,10 +42,12 @@ samplers <- EMC2:::loadRData(fn)
 # the data are not super informative for AM. But still, it convergences with decent
 # chains took some 40 minutes here
 
+summary(samplers)
+check(samplers)
 plot(samplers)
 plot_pars(samplers)
 
-pp <- predict(samplers, n_cores=30, n_post=100, conditional_on_data=FALSE)
+pp <- predict(samplers, n_cores=30, n_post=50, conditional_on_data=FALSE)
 
 ## plot all effects: 1. stimulus history
 plot_history_effects(wgm, pp)
@@ -69,7 +72,8 @@ plotSpectrum(dat=wgm, pp=pp, trial_duration=trial_duration)
 # E.g., people might grow tired over time and their efficiency of information sampling could decrease
 # Vice versa, it could also increase due to practice. In either case,
 # there might be a trend.
-trend_MS3t=make_trend(kernel=c('delta', 'delta', 'deltab', 'poly4'), base=c('lin','lin', 'lin', 'add'),
+trend_MS3t=make_trend(kernel=c('delta', 'delta', 'deltab', 'poly4'), 
+                      base=c('lin','lin', 'lin', 'add'),
                       cov_names =c('S01', 'error', 'rt', 'trials2'),
                       par_names=c('B_lRd', 'v', 'B', 'v_lMd'),
                       premap = TRUE, pretransform = FALSE, filter_lR=TRUE)
@@ -98,11 +102,12 @@ fn <- file.path(wd, 'samples/wgm_MS3T.RData')
 # This is even harder to sample, of course. Yet, again, give it enough time and it will converge.
 # took some 53 minutes here.
 samplers <- EMC2:::loadRData(fn)
+check(samplers)
 
 plot_pars(samplers)
 
 pp <- predict(samplers, n_cores=20, conditional_on_data=FALSE)
-plotSpectrum(dat=wgm, pp=pp)
+plotSpectrum(dat=wgm, pp=pp, trial_duration = mean(wgm$rt)+.5)
 
 
 # And the other effects
