@@ -127,7 +127,7 @@ plot_trend(p_vector, samplers=samplers,
            lR_filter='odd', main='Threshold for odd')
 ```
 
-Clearly, this is not a linear increase. This happens because the threshold is sampled on the log scale, so an exponential transform is applied after mapping the parameter vector to the design cells. Since the linear trend was applied prior to mapping, this linear effect becomes non-linear. `mapped_pars()` demonstrates this:
+Clearly, this is not a linear increase. This happens because the threshold is sampled on the log scale, so an exponential transform is applied after mapping the parameter vector to the design cells. Since the linear trend was applied prior to mapping, this linear effect becomes non-linear. `mapped_pars()` can be used to clarify:
 
 ```{r linear_trend_example1_mapped_pars}
 mapped_pars(design_RDM_lin_B)
@@ -211,7 +211,28 @@ plot_pars(samplers)
 credint(samplers)
 ```
 
-On a group-level, we find a small (not credible) positive `B.w` -- on average, in this dataset, thresholds appear to increase by \~0.070 over the course of 1000 trials.
+On a group-level, we find a small (not credible) positive `B.w` -- on average, in this dataset, thresholds appear to increase by \~0.070 over the course of 1000 trials. We can now generate posterior predictives, and while doing that, ask *EMC2* to return the mapped and transformed parameters, which will allow us to visualize the fitted thresholds over trials:
+
+```{r plot_linear_trend_fitted}
+# By setting return_trialwise_parameters to TRUE, we obtain the parameters 
+# of each iteration as an attribute in the returned object (pp).
+pp <- predict(samplers, n_cores=10, return_trialwise_parameters=TRUE)
+par(mfrow=c(2,3))
+for(subject in 1:6) {
+  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+             par_name='B', subject=subject, lR_filter='odd', main=subject)
+}
+```
+Here, the green shaded area indicated the 95\% credible interval of the posterior on the threshold for each trial. We can also plot the individual thresholds of each posterior predictive separately as lines:
+
+```{r plot_linear_trend_fitted_lines}
+par(mfrow=c(2,3))
+for(subject in 1:6) {
+  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+             par_name='B', subject=subject, lR_filter='odd', 
+             main=subject, pp_shaded=FALSE)
+}
+```
 
 ### Exponential and power laws
 
@@ -472,7 +493,9 @@ So we find a learning rate of \~0.368, and the threshold of the odd accumulator 
 We can now check whether the SM mechanism can explain stimulus-history effects by plotting the RTs (by choice) and the probability of choosing left as a function of the previous three presented stimuli. First, generate posterior predictives:
 
 ```{r SM_pp, eval=FALSE}
-pp <- predict(samplers, n_cores=10)
+pp <- predict(samplers, n_cores=10, 
+              # for plotting purposes below, these arguments are added:
+              return_trialwise_parameters=TRUE, return_covariates=TRUE)
 save(pp, file='./ds1_SMB_pps.RData')
 ```
 
@@ -500,6 +523,35 @@ The delta rule is applied to the covariate as it is specified in the \texttt{dad
 
 In many applications when using dynamic EAMs, this is likely the intended behavior. However, there are two exceptions: 1) The DDM only has one accumulator per trial, so no filtering has to be done (or can be done); and 2) when using RL-EAMs, applied to instrumental learning tasks, the covariate can differ between the two accumulators (feedback can be given to one specific option, for example). In such cases, more advanced handling of the covariate is required, and \texttt{filter\_lR} should not be TRUE.
 \end{tcolorbox}
+
+
+As before, we can plot the trial-wise parameters with `plot_trend()`. Let's zoom in on the even and odd thresholds of the first three subject for the first 20 trials:
+
+```{r trialwise_parameters_SM}
+par(mfcol=c(2,3))
+for(subject in 1:3) {
+  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+             par_name='B', subject=subject, lR_filter='odd', main=paste0(subject, ' odd'),
+             xlim=c(1,20))
+  plot_trend(attr(pp, 'trialwise_parameters'), samplers=samplers, 
+             par_name='B', subject=subject, lR_filter='even', main=paste0(subject, ' even'),
+             xlim=c(1,20))
+}
+```
+
+Additionally, we can plot the evolution of the Q-values themselves. Note that `predict()` was run with another argument: `return_covariates`. We can use this as follows:
+
+```{r trialwise_Qvalues_SM}
+par(mfcol=c(1,3))
+for(subject in 1:3) {
+  plot_trend(attr(pp, 'covariates'), samplers=samplers, 
+             par_name='B_lRd.q0', subject=subject,
+             main=subject,
+             xlim=c(1,20))
+}
+```
+
+
 
 ## Stimulus memory: DDM and drift rate effects
 
