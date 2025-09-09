@@ -461,7 +461,7 @@ design_RDM_SM <- design(model=RDM,
                          constants=c('B_lRd'=0, 'B_lRd.q0'=0))
 ```
 
-We can now apply a similar prior to B as above, and fit the model. Note data compression is turned off automatically, since the delta rule needs to be applied to the covariate on each trial individually.
+We can now apply a similar prior to B as above, and fit the model. Note that data compression is turned off automatically, since the delta rule needs to be applied to the covariate on each trial individually.
 
 ```{r SM_fit_prep, eval=TRUE}
 prior_SMB <- prior(design_RDM_SM, mu_mean=c(B=2), mu_sd=c(B=0.5))
@@ -488,7 +488,7 @@ We find excellent convergence properties. Note that learning rates are by defaul
 credint(samplers, map=TRUE)
 ```
 
-So we find a learning rate of \~0.368, and the threshold of the odd accumulator is 0.333 lower than the threshold for the even accumulator if the participant has a $Q_{SM}$-value of 1.
+Hence, we find a group-wise mean learning rate of \~0.38, and the threshold of the odd accumulator is 0.323 lower than the threshold for the even accumulator if the participant has a $Q_{SM}$-value of 1.
 
 We can now check whether the SM mechanism can explain stimulus-history effects by plotting the RTs (by choice) and the probability of choosing left as a function of the previous three presented stimuli. First, generate posterior predictives:
 
@@ -501,13 +501,12 @@ save(pp, file='./ds1_SMB_pps.RData')
 
 ```{r SM_pp_check, eval=TRUE}
 load('./ds1_SMB_pps.RData')
-par(mar=c(3,2,2,1))
 plot_history_effects(dat, pp, n_hist=3)
 ```
 
 The left panel of this plot shows the mean RT as a function of the three previous trials' stimuli (ooo = odd, odd, odd; ooe = odd, odd, even; etc.). The data show a cross-over pattern, such that if the previous three stimuli were odd, 'odd' responses are faster than 'even' responses; and vice versa. The model tends to capture this cross-over pattern fairly well, with some misfits mostly due to an apparent asymmetry in the cross-over in the data.
 
-The right panel shows the probability of choosing even (black) and the probability of the stimulus being even (red) as a function of local trial history. The black line demonstrates that participants are more likely (\~.55) to choose 'even' if the previous three trials were 'even'. The red crosses are important as a quality check. If the stimuli are generated truly randomly, the red crosses should be approximately 0.5 in all cases. However, some experiments use pseudorandomization, which can lead to negative correlations in local stimulus histories. This can confound any stimulus history effects present in the human data. True stimulus history effects are those that are larger than the ones present in the data, e.g., visible as 'slopes' in data that are steeper than the stimulus history contingencies in the experiment design.
+The right panel shows the probability of choosing even (black) and the probability of the stimulus being even (red) as a function of local trial history. The black crosses demonstrates that participants are more likely (\~.55) to choose 'even' if the previous three trials were 'even'. The red circles are important as a quality check. If the stimuli are generated truly randomly, the red circles should be approximately at 0.5 in all cases. However, some experiments use pseudorandomization, which can lead to negative correlations in local stimulus histories. This can confound any stimulus history effects present in the human data. True stimulus history effects are those that are larger than the ones present in the data, e.g., visible as black crosses deviating stronger from 0.5 compared to red circles.
 
 \begin{tcolorbox}[title=Advanced note: filter\_lR]
 Under the hood, EMC2 works with data-augmented design matrices (\texttt{dadm}s). A \texttt{dadm} contains one row per accumulator per trial -- so for race models applied to two-alternative forced choice tasks, this will typically result in two rows per trial. We can inspect the \texttt{dadm} for the first subject in the samplers object to see that the covariate \texttt{Stim1} is indeed the same across accumulators in each trial:
@@ -539,7 +538,7 @@ for(subject in 1:3) {
 }
 ```
 
-Additionally, we can plot the evolution of the Q-values themselves. Note that `predict()` was run with another argument: `return_covariates`. We can use this as follows:
+Alternatively, we can plot the evolution of the Q-values themselves. Note that `predict()` was run with another argument: `return_covariates`, which returns the updated covariates as an attribute. We can use this as follows:
 
 ```{r trialwise_Qvalues_SM}
 par(mfcol=c(1,3))
@@ -579,7 +578,7 @@ samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
                 fileName='./samples/ds1_SMv_DDM.RData')
 ```
 
-However, this does not appear to fit as well qualitatively and loses model comparisons:
+However, this does not appear to fit as well qualitatively and loses quantitative model comparisons:
 
 ```{r ddm_example_pp, eval=FALSE}
 pp_ddm <- predict(samplers, n_cores=10)
@@ -623,12 +622,14 @@ design_RDM_AM <- design(model=RDM,
 # match (correct/incorrect), which will allow us to capture the
 # relative speed of errors.
 
-# note that 2) in this case, we are not estimating v on the natural scale.
-# This is because the RDM has no known analytic likelihood for negative drift rates,
-# the AM mechanism can push drift rates on individual trials to negative values when
-# applied on the natural scale. In this specific case, this can lead to difficulties
-# sampling. Hence, the effect of errors on urgency as we implement it here,
-# is not strictly linear -- it is linear on the log-scale, and then exponentiated.
+# note that 2) in this case, we are not estimating v on the natural scale:
+mapped_pars(design_RDM_AM)
+# This is because the AM mechanism can push drift rates on individual trials 
+# to negative values when applied on the natural scale.
+# Since the RDM has no known analytic likelihood for negative drift rates,
+# this can lead to difficulties sampling. Hence, the effect of errors on 
+# urgency as we implement it here, is not strictly linear -- it is linear on 
+# the log-scale, and then exponentiated.
 # The cognitive interpretation is similar.
 
 samplers <- make_emc(dat, design=design_RDM_AM, compress=FALSE)
@@ -637,7 +638,7 @@ samplers <- fit(samplers, cores_per_chain=6, cores_for_chains=3,
 credint(samplers)
 ```
 
-Accuracy memory can help explain error-related effects, like post-error slowing. To visualize, we can generate posterior predictives and then use a convenience function to plot mean RT as a function of trial number relative to an error. Note that, since the covariate in this case depends on observed behavior, we need to simulate data and determine the covariate one trial at a time. *EMC2* detects whether the covariate is `rt`, `R`, or the output of one of the functions provided to design. If it is, it automatically simulates data trial-by-trial. As vectorisation is not possible in this case, this is slower.
+Accuracy memory can help explain error-related effects, like post-error slowing. To visualize, we can generate posterior predictives and then use a convenience function to plot mean RT as a function of trial number relative to an error. Note that, since the covariate in this case depends on observed behavior, we need to simulate data and determine the covariate one trial at a time. *EMC2* detects whether the covariate is `rt`, `R`, or the output of one of the functions provided to design. If it is, it automatically simulates data trial-by-trial. As vectorisation is not possible in this case, this way of simulating data is slower.
 
 ```{r AM_pp_gen, eval=FALSE}
 samplers <- get(load('./samples/ds1_AM.RData'))
