@@ -1,29 +1,64 @@
-plot_trend <- function(p_vector, samplers, par_name, subject=1, 
-                       lM_filter=NULL, lR_filter=NULL, on_x_axis='trials',
-                        ...) {
-  dadm <- samplers[[1]]$data[[subject]]
-  updated <- EMC2:::get_pars_matrix(p_vector=p_vector,
-                                    dadm=dadm,
-                                    model=samplers[[1]]$model())
-  filter <- rep(TRUE, nrow(dadm))
-  if(!is.null(lM_filter)) filter <- filter & dadm$lM==lM_filter
-  if(!is.null(lR_filter)) filter <- filter & dadm$lR==lR_filter
-  
-  dots <- list(...)
-  if(!'xlab' %in% names(dots)) dots$xlab=on_x_axis
-  x <- dadm[filter, on_x_axis]
-  y <- updated[filter, par_name]
-  y <- y[order(x)]
-  x <- x[order(x)]
-  
-  full_args <- c(list(x=x,
-                      y=y,
-                      type='l', ylab=par_name), dots)
-  do.call(plot, full_args)
-  # plot(dadm[filter, on_x_axis],
-  #      , xlab=xlab, ...,
-  #      type='l', ylab=par_name)
-}
+# plot_trend <- function(input_data, emc, par_name, subject=1,
+#                        lM_filter=NULL, lR_filter=NULL, on_x_axis='trials',
+#                        pp_shaded=TRUE,
+#                        ...) {
+#   
+#   
+#   if(!is.list(input_data)) {
+#     # user supplied p_vector
+#     dadm <- emc[[1]]$data[[subject]]
+#   } else {
+#     dadm <- do.call(rbind, emc[[1]]$data)
+#   }
+#   filter <- rep(TRUE, nrow(dadm)) & dadm$subjects==subject
+#   if(!is.null(lM_filter)) filter <- filter & dadm$lM==lM_filter
+#   if(!is.null(lR_filter)) filter <- filter & dadm$lR==lR_filter
+#   if(!is.list(input_data)) {
+#     updated <- get_pars_matrix(p_vector=input_data,
+#                                dadm=dadm,
+#                                model=emc[[1]]$model())
+#     trend <- updated[filter, par_name]
+#     credible_interval <- NULL
+#     ylim <- range(trend)
+#     x <- dadm[filter, on_x_axis]
+#     trend <- trend[order(x)]
+#     x <- x[order(x)]
+#   } else {
+#     # user supplied posterior predictives
+#     updated <- lapply(seq_along(input_data), function(i) data.frame(input_data[[i]][filter,par_name,drop=FALSE], x=dadm[filter,on_x_axis]))
+#     credible_interval <- aggregate(.~x, do.call(rbind, updated), quantile, c(0.025, .5, .9))
+#     
+#     ## order
+#     credible_interval <- credible_interval[order(credible_interval[[1]]),]
+#     trend <- credible_interval[[2]][,2]  # median
+#     x <- credible_interval[[1]]
+#     if(pp_shaded) {
+#       ylim <- range(credible_interval[[2]])
+#     } else {
+#       ylim <- range(sapply(updated, function(x) range(x[,par_name])))
+#     }
+#   }
+#   
+#   # parse dots for plotting arguments
+#   dots <- list(...)
+#   if(!'xlab' %in% names(dots)) dots$xlab=on_x_axis
+#   if(!'ylim' %in% names(dots)) dots$ylim=ylim
+#   
+#   full_args <- c(list(x=x,
+#                       y=trend,
+#                       type='l', ylab=par_name), dots)
+#   do.call(plot, full_args)
+#   
+#   if(!is.null(credible_interval)) {
+#     if(pp_shaded) {
+#       polygon(x=c(x, rev(x)),
+#               y=c(credible_interval[[2]][,1], rev(credible_interval[[2]][,3])), col=adjustcolor(3, alpha.f = .3), border=adjustcolor(1, alpha.f=.4))
+#     } else {
+#       for(i in updated) lines(i$x, i[,par_name], lwd=.2)
+#     }
+#   }
+# }
+
 
 # SM effects
 add_prev <- function(dat, n_hist, levels=c('l', 'r')) {
@@ -35,12 +70,67 @@ add_prev <- function(dat, n_hist, levels=c('l', 'r')) {
   return(dat)
 }
 
-plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3) {
+legend_outside <- function(position = c("topright", "topleft"),
+                           legend_text, fill = NULL, col = NULL, lty = NULL, lwd = NULL, pch = NULL,
+                           border = NA, bty = "n",
+                           inset_frac = 0.005,
+                           ...) {
+  position <- match.arg(position)
+  
+  usr <- par("usr")
+  x_range <- usr[2] - usr[1]
+  y_range <- usr[4] - usr[3]
+  
+  # Build args list for legend measurement
+  legend_args <- list(x = usr[1], y = usr[4], legend = legend_text,
+                      border = border, bty = bty, plot = FALSE, ...)
+  
+  if (!is.null(fill)) legend_args$fill <- fill
+  if (!is.null(col)) legend_args$col <- col
+  if (!is.null(lty)) legend_args$lty <- lty
+  if (!is.null(lwd)) legend_args$lwd <- lwd
+  if (!is.null(pch)) legend_args$pch <- pch
+  
+  # Measure legend size without plotting
+  leg_info <- do.call(graphics::legend, legend_args)
+  
+  legend_height <- leg_info$rect$h
+  legend_width <- leg_info$rect$w
+  
+  offset_y <- legend_height + inset_frac * y_range
+  inset_x <- inset_frac * x_range
+  
+  par(xpd = TRUE)
+  
+  # Prepare args for actual legend drawing
+  legend_args$x <- NULL
+  legend_args$y <- NULL
+  legend_args$plot <- NULL
+  
+  if (position == "topleft") {
+    legend_args$x <- usr[1] + inset_x
+    legend_args$y <- usr[4] + offset_y
+    # legend_args$adj <- c(0, 0.5)
+  } else if (position == "topright") {
+    legend_args$x <- usr[2] - legend_width - inset_x
+    legend_args$y <- usr[4] + offset_y
+  # legend_args$adj <- c(0, 0.5)  # left align, vertical center
+  }
+  
+  do.call(graphics::legend, legend_args)
+  
+  par(xpd = FALSE)
+}
+
+rev_str <- function(x) paste(rev(strsplit(x, "")[[1]]), collapse = "")
+
+plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3, p_random=0.5) {
   dat <- add_prev(dat, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
   pp <- add_prev(pp, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
   
   ## plot
   is_Rone <- levels(dat$R)[1]
+  is_Rtwo <- levels(dat$R)[2]
   is_Sone <- levels(dat$S)[1]
   
   pp$choice <- pp$R==is_Rone
@@ -53,7 +143,6 @@ plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3) {
   pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
   
   par(mfcol=c(1,2))
-#  for(hist_type in c('stimuli', 'responses')) {
   colN <- toupper(substr(hist_type,1,1))
   prevD <- prevPP <- NULL
   for(trial in 1:n_hist) {
@@ -73,10 +162,14 @@ plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3) {
   
   # 1. RT ~ history
   x <- 1:length(agg2$prev[agg2$R==is_Rone])
-  plot(x,agg2$rt[agg2$R==is_Rone], pch=4, lwd=2, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
-  points(x,agg2$rt[agg2$R!=is_Rone], pch=4, col=2, lwd=2)
-  axis(side=1, at=x, labels=agg2$prev[agg2$R!=is_Rone])
-  legend('bottom', c(paste0('choice=', is_Rone), paste0('choice!=', is_Rone)), col=c(1,2), lwd=c(1,1), lty=c(1,1), bty='n')
+  plot(x,agg2$rt[agg2$R==is_Rone], pch=4, lwd=1, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
+  points(x,agg2$rt[agg2$R!=is_Rone], pch=4, col=2, lwd=1)
+  
+  labels_rev <- sapply(agg2$prev[agg2$R!=is_Rone], rev_str)
+  axis(side=1, at=x, labels=labels_rev, las=3)
+  
+  legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
+  legend_outside('topright', legend_text=c(paste0('R=', is_Rone), paste0('R=', is_Rtwo)), fill=c(1,2), border=NA, bty='n')
   
   arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,3], angle=90, code=3, length=0.025, col=1)
   arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,3], angle=90, code=3, length=0.025, col=2)
@@ -93,9 +186,8 @@ plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3) {
   
   ylim <- range(c(range(agg4$choice), range(agg5pp$choice)))
   x <- 1:length(agg4$prev)
-  plot(x,agg4$choice, pch=4, lwd=2, xaxt='n', ylab=paste0('Choice/stimulus == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=ylim)
-  axis(side=1, at=x, labels=agg4$prev)
-  abline(h=0.5)
+  plot(x,agg4$choice, type='n', pch=4, lwd=1, xaxt='n', ylab=paste0('P (', is_Rone, ')'), xlab=paste0('Previous ', hist_type), ylim=ylim)
+  abline(h=p_random, lty=2)
   # PP
   arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,3], angle=90, code=3, length=0.025, col=1)
   lines(x=x, y=agg5pp[,2][,2], col=1)
@@ -104,85 +196,16 @@ plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3) {
   agg5 <- aggregate(stim~subjects*prev, dat, mean)
   agg6 <- aggregate(stim~prev, agg5, mean)
   x <- 1:length(agg6$prev)
-  points(x, agg6$stim, pch=4, lwd=2, col=2) # 
-  #lines(x=x, y=agg5pp[,2][,2], col=2)
-  axis(side=1, at=x, labels=agg6$prev)
-  abline(h=0.5)
-  legend('topright', c('Choice (data)', 'Stimulus', 'Model'), col=c(1,2,1), lwd=c(NA,NA,2), pch=c(4,4,NA), bty='n')
+  points(x, agg6$stim, pch=20, lwd=1, col=2) # 
+  points(x, agg4$choice, pch=4, lwd=1)  # plot again to overwrite filled circle
+  
+  labels_rev <- sapply(agg6$prev, rev_str)
+  axis(side=1, at=x, labels=labels_rev, las=3)
+  legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
+  legend_outside('topright', legend_text=c('stimulus'), pch=c(20), col=2, border=NA, bty='n')
 }
 
-# plot_history_effects <- function(dat, pp, n_hist=3) {
-#   dat <- add_prev(dat, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
-#   pp <- add_prev(pp, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
-#   
-#   ## plot
-#   is_Rone <- levels(dat$R)[1]
-#   is_Sone <- levels(dat$S)[1]
-#   
-#   pp$choice <- pp$R==is_Rone
-#   dat$choice <- dat$R==is_Rone
-#   dat$stim <- dat$S==is_Sone
-#   pp$stim <- pp$S==is_Sone
-#   
-#   ## remove
-#   dat <- dat[!is.na(dat[,paste0('Sminus', n_hist)]),]
-#   pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
-#   
-#   par(mfcol=c(3,2))
-#   for(hist_type in c('stimuli', 'responses')) {
-#     colN <- toupper(substr(hist_type,1,1))
-#     prevD <- prevPP <- NULL
-#     for(trial in 1:n_hist) {
-#       prevD <- paste0(prevD, dat[,paste0(colN,'minus',trial)])
-#       prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
-#     }
-#     dat$prev <- prevD
-#     pp$prev <- prevPP
-#     
-#     # RTs ~ history. Aggregate: First by subject, then across subjects
-#     agg1 <- aggregate(rt~subjects*R*prev, dat, mean)
-#     agg2 <- aggregate(rt~R*prev, agg1, mean)
-#     ## pp. Aggregate: First by subject, then across subjects, then CI across posteriors
-#     agg1pp <- aggregate(rt~postn*subjects*R*prev, pp, mean)
-#     agg2pp <- aggregate(rt~postn*R*prev, agg1pp, mean)
-#     agg3pp <- aggregate(rt~R*prev, agg2pp, quantile, c(0.025, 0.975))
-#     
-#     # 1. RT ~ history
-#     x <- 1:length(agg2$prev[agg2$R==is_Rone])
-#     plot(x,agg2$rt[agg2$R==is_Rone], type='b', pch=4, lwd=2, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
-#     points(x,agg2$rt[agg2$R!=is_Rone], type='b', pch=4, col=2, lwd=2)
-#     axis(side=1, at=x, labels=agg2$prev[agg2$R!=is_Rone])
-# #    legend('topright', c(paste0('choice=', is_Rone), paste0('choice!=', is_Rone)), col=c(1,2), lwd=c(1,1), lty=c(1,1))
-#     
-#     arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,2], angle=90, code=3, length=0.025, col=1)
-#     arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,2], angle=90, code=3, length=0.025, col=2)
-#     
-#     
-#     # 2. Choice ~ history
-#     agg3 <- aggregate(choice~subjects*prev, dat, mean)
-#     agg4 <- aggregate(choice~prev, agg3, mean)
-#     
-#     agg3pp <- aggregate(choice~postn*subjects*prev, pp, mean)
-#     agg4pp <- aggregate(choice~prev*postn, agg3pp, mean)
-#     agg5pp <- aggregate(choice~prev, agg4pp, quantile, c(0.025, 0.975))
-#     
-#     ylim <- range(c(range(agg4$choice), range(agg5pp$choice)))
-#     x <- 1:length(agg4$prev)
-#     plot(x,agg4$choice, type='b', pch=4, lwd=2, xaxt='n', ylab=paste0('Choice == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=ylim)
-#     axis(side=1, at=x, labels=agg4$prev)
-#     abline(h=0.5)
-#     # PP
-#     arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,2], angle=90, code=3, length=0.025, col=1)
-#     
-#     # 3. Stimulus ~ history
-#     agg5 <- aggregate(stim~subjects*prev, dat, mean)
-#     agg6 <- aggregate(stim~prev, agg5, mean)
-#     x <- 1:length(agg6$prev)
-#     plot(x,agg6$stim, type='b', pch=4, lwd=2, xaxt='n', ylab=paste0('Stim == ', is_Rone), xlab=paste0('Previous ', hist_type), ylim=c(0.40, 0.60))
-#     axis(side=1, at=x, labels=agg6$prev)
-#     abline(h=0.5)
-#   }
-# }
+#plot_history_effects(dat, pp)
 
 ## Spectrum
 load_save_spectrum <- function(dat, dat_fn, by.postn=FALSE, detrend, demean, overwrite=FALSE) {
@@ -288,7 +311,7 @@ plotSpectrum <- function(dat, pp, pp2=NULL,
                          dat_fn=NULL, pp_fn=NULL, pp2_fn=NULL,
                          xlab='', ylab='', main='', add.legend=FALSE, ylim=NULL, plot.log=TRUE, xlim=NULL, detrend=FALSE,
                          demean=TRUE,
-                         trial_duration=NULL, full_x=FALSE, plot_xticklabels=TRUE, overwrite=TRUE) {
+                         trial_duration=NULL, full_x=TRUE, plot_xticklabels=TRUE, overwrite=TRUE) {
   powerSpectraData <- load_save_spectrum(dat, dat_fn, detrend=detrend, demean=demean, overwrite=overwrite)
   
   if(plot.log) { f <- function(x) log(x) } else { f <- function(x) x }
@@ -364,7 +387,7 @@ plotPES <- function(data_PES=NULL,
                     mean_rt=NULL,
                     xlab='Trial relative to error',
                     rtmeasure='rtabs',
-                    main='Error-related effects', ylim=NULL,
+                    main='', ylim=NULL,
                     ylab='RT (s)') {
   
   ## Plot
@@ -381,15 +404,29 @@ plotPES <- function(data_PES=NULL,
   
   ## data
   points(data_PES[data_PES$measure==rtmeasure,'trialNposterror'],
-         data_PES[data_PES$measure==rtmeasure,'value'], pch=4, lwd=2)
+         data_PES[data_PES$measure==rtmeasure,'value'], pch=4, lwd=1)
   
   ## posterior predictives
   arrows(x0=pp_PES_CI[pp_PES_CI$measure==rtmeasure,'trialNposterror'],
          y0=pp_PES_CI[pp_PES_CI$measure==rtmeasure,'value'][,1],
          y1=pp_PES_CI[pp_PES_CI$measure==rtmeasure,'value'][,3],
-         angle=90, code=3, length=.02, lwd=2, col=2)
+         angle=90, code=3, length=.02, lwd=1, col=1)
   xs <- pp_PES_CI[pp_PES_CI$measure==rtmeasure,'trialNposterror']
-  lines(xs, pp_PES_CI[pp_PES_CI$measure==rtmeasure,'value'][,2], col=2)
+  lines(xs, pp_PES_CI[pp_PES_CI$measure==rtmeasure,'value'][,2], col=1)
+  legend('topleft', c('data', 'model'), lwd=c(NA,1), lty=c(NA,1), col=c(1,1), pch=c(4,NA), bty='n')
+}
+
+plot_error_effects <- function(dat, pp, cores=10) {
+  if(!'accuracy' %in% colnames(dat)) dat$accuracy <- dat$S==dat$R
+  if(!'accuracy' %in% colnames(pp)) pp$accuracy <- pp$S==pp$R
+  
+  data_PES <- getErrorEffects(dat)
+  pp_PES <- getErrorEffects(pp, mc.cores=cores)
+  
+  par(mfrow=c(1,1))
+  plotPES(data_PES=data_PES$average, pp_PES=pp_PES$average,
+          mean_rt=mean(aggregate(rt~subjects,dat,mean)[,2]),
+          main='')
 }
 
 plotPESBySubject <- function(data_PES=NULL,
