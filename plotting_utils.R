@@ -124,77 +124,134 @@ legend_outside <- function(position = c("topright", "topleft"),
 
 rev_str <- function(x) paste(rev(strsplit(x, "")[[1]]), collapse = "")
 
-plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3, p_random=0.5) {
+recode_RA <- function(dat) {
+  for(hist_type in c('S', 'R')) {
+    cname <- paste0(hist_type, 'rep')
+    # Recode S and R into repetition/alternation
+    tmp1 <- ifelse(as.numeric(dat[,hist_type])==1,1,-1)
+    tmp2 <- Hmisc::Lag(tmp1, 1)
+    dat[,cname] <- tmp1*tmp2
+    dat[dat$trials==1,cname] <- 0
+    dat[is.na(dat[,cname]),cname] <- 0
+  }
+  
+  dat[,'S'] <- factor(dat$Srep, levels=c(1,-1), labels=c('R', 'A'))
+  dat[,'R'] <- factor(dat$Rrep, levels=c(1,-1), labels=c('R', 'A'))
+  dat[,!colnames(dat) %in% c('Srep', 'Rrep')]
+}
+
+plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random=0.5, degree=1) {
+  if(degree == 2) {
+    dat <- recode_RA(dat)
+    dat <- dat[!is.na(dat$S),]
+    
+    if(!is.null(pp)) {
+      pp <- recode_RA(pp)
+      pp <- pp[!is.na(pp$S),]
+    }
+  }
   dat <- add_prev(dat, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
-  pp <- add_prev(pp, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
-  
+  if(!is.null(pp)) {
+    pp <- add_prev(pp, n_hist=n_hist, levels=sapply(levels(dat$S), substr, 1, 1))
+  }
   ## plot
-  is_Rone <- levels(dat$R)[1]
-  is_Rtwo <- levels(dat$R)[2]
-  is_Sone <- levels(dat$S)[1]
+  is_Rone_label <- is_Rone <- levels(dat$R)[1]
+  is_Rtwo_label <- is_Rtwo <- levels(dat$R)[2]
+  is_Sone_label <- is_Sone <- levels(dat$S)[1]
   
-  pp$choice <- pp$R==is_Rone
+  if(!is.null(pp)) {
+    pp$choice <- pp$R==is_Rone
+  }
   dat$choice <- dat$R==is_Rone
   dat$stim <- dat$S==is_Sone
-  pp$stim <- pp$S==is_Sone
+  if(!is.null(pp)) {
+    pp$stim <- pp$S==is_Sone
+  }
+  
+  if(degree == 2) {
+    is_Rone_label <- ifelse(is_Rone=='R', 'Rep.', 'Alt.') 
+    is_Rtwo_label <- ifelse(is_Rtwo=='R', 'Rep.', 'Alt.') 
+    is_Sone_label <- ifelse(is_Sone=='R', 'Rep.', 'Alt.') 
+  }
   
   ## remove
   dat <- dat[!is.na(dat[,paste0('Sminus', n_hist)]),]
-  pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
+  if(!is.null(pp)) {
+    pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
+  }
   
   par(mfcol=c(1,2))
   colN <- toupper(substr(hist_type,1,1))
   prevD <- prevPP <- NULL
   for(trial in 1:n_hist) {
     prevD <- paste0(prevD, dat[,paste0(colN,'minus',trial)])
-    prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
+    if(!is.null(pp)) {
+      prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
+    }
   }
   dat$prev <- prevD
-  pp$prev <- prevPP
+  if(!is.null(pp)) {
+    pp$prev <- prevPP
+  }
   
   # RTs ~ history. Aggregate: First by subject, then across subjects
   agg1 <- aggregate(rt~subjects*R*prev, dat, mean)
   agg2 <- aggregate(rt~R*prev, agg1, mean)
-  ## pp. Aggregate: First by subject, then across subjects, then CI across posteriors
-  agg1pp <- aggregate(rt~postn*subjects*R*prev, pp, mean)
-  agg2pp <- aggregate(rt~postn*R*prev, agg1pp, mean)
-  agg3pp <- aggregate(rt~R*prev, agg2pp, quantile, c(0.025, .5, 0.975))
-  
+
+  ylim1 <- range(c(agg2$rt))
+  if(!is.null(pp)) {
+    
+    ## pp. Aggregate: First by subject, then across subjects, then CI across posteriors
+    agg1pp <- aggregate(rt~postn*subjects*R*prev, pp, mean)
+    agg2pp <- aggregate(rt~postn*R*prev, agg1pp, mean)
+    agg3pp <- aggregate(rt~R*prev, agg2pp, quantile, c(0.025, .5, 0.975))
+    #agg3pp$rt[is.infinite(agg3pp$rt)] <- max(agg3pp$rt[!is.infinite(agg3pp$rt)])
+    ylim1 <- range(c(agg2$rt,agg3pp$rt))
+  }
   # 1. RT ~ history
   x <- 1:length(agg2$prev[agg2$R==is_Rone])
-  plot(x,agg2$rt[agg2$R==is_Rone], pch=4, lwd=1, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=range(c(agg2$rt,agg3pp$rt)))
+  plot(x,agg2$rt[agg2$R==is_Rone], pch=4, lwd=1, xaxt='n', ylab='RT', xlab=paste0('Previous ', hist_type), ylim=ylim1)
   points(x,agg2$rt[agg2$R!=is_Rone], pch=4, col=2, lwd=1)
   
   labels_rev <- sapply(agg2$prev[agg2$R!=is_Rone], rev_str)
   axis(side=1, at=x, labels=labels_rev, las=3)
   
   legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
-  legend_outside('topright', legend_text=c(paste0('R=', is_Rone), paste0('R=', is_Rtwo)), fill=c(1,2), border=NA, bty='n')
+  legend_outside('topright', legend_text=c(paste0('R=', is_Rone_label), paste0('R=', is_Rtwo_label)), fill=c(1,2), border=NA, bty='n')
   
-  arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,3], angle=90, code=3, length=0.025, col=1)
-  arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,3], angle=90, code=3, length=0.025, col=2)
-  lines(x, agg3pp$rt[agg3pp$R==is_Rone,2], col=1)
-  lines(x, agg3pp$rt[agg3pp$R!=is_Rone,2], col=2)
-  
+  if(!is.null(pp)) {
+    arrows(x0=x, y0=agg3pp$rt[agg3pp$R==is_Rone,1], y1=agg3pp$rt[agg3pp$R==is_Rone,3], angle=90, code=3, length=0.025, col=1)
+    arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,3], angle=90, code=3, length=0.025, col=2)
+    lines(x, agg3pp$rt[agg3pp$R==is_Rone,2], col=1)
+    lines(x, agg3pp$rt[agg3pp$R!=is_Rone,2], col=2)
+  }
   # 2. Choice ~ history
   agg3 <- aggregate(choice~subjects*prev, dat, mean)
   agg4 <- aggregate(choice~prev, agg3, mean)
   
-  agg3pp <- aggregate(choice~postn*subjects*prev, pp, mean)
-  agg4pp <- aggregate(choice~prev*postn, agg3pp, mean)
-  agg5pp <- aggregate(choice~prev, agg4pp, quantile, c(0.025,.5, 0.975))
-  
-  ylim <- range(c(range(agg4$choice), range(agg5pp$choice)))
-  x <- 1:length(agg4$prev)
-  plot(x,agg4$choice, type='n', pch=4, lwd=1, xaxt='n', ylab=paste0('P (', is_Rone, ')'), xlab=paste0('Previous ', hist_type), ylim=ylim)
-  abline(h=p_random, lty=2)
-  # PP
-  arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,3], angle=90, code=3, length=0.025, col=1)
-  lines(x=x, y=agg5pp[,2][,2], col=1)
-  
-  # 3. Stimulus ~ history
+  if(!is.null(pp)) {
+    agg3pp <- aggregate(choice~postn*subjects*prev, pp, mean)
+    agg4pp <- aggregate(choice~prev*postn, agg3pp, mean)
+    agg5pp <- aggregate(choice~prev, agg4pp, quantile, c(0.025,.5, 0.975))
+  }
+  # stimulus~history
   agg5 <- aggregate(stim~subjects*prev, dat, mean)
   agg6 <- aggregate(stim~prev, agg5, mean)
+  
+  if(!is.null(pp)) {
+    ylim2 <- range(c(range(agg4$choice), range(agg5pp$choice), range(agg6$stim)))
+  } else {
+    ylim2 <- range(c(range(agg4$choice), range(agg6$stim)))
+  }
+  x <- 1:length(agg4$prev)
+  plot(x,agg4$choice, type='n', pch=4, lwd=1, xaxt='n', ylab=paste0('P (', is_Rone_label, ')'), xlab=paste0('Previous ', hist_type), ylim=ylim2)
+  abline(h=p_random, lty=2)
+  # PP
+  if(!is.null(pp)) {
+    arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,3], angle=90, code=3, length=0.025, col=1)
+    lines(x=x, y=agg5pp[,2][,2], col=1)
+  }
+  # 3. Stimulus ~ history
   x <- 1:length(agg6$prev)
   points(x, agg6$stim, pch=20, lwd=1, col=2) # 
   points(x, agg4$choice, pch=4, lwd=1)  # plot again to overwrite filled circle
@@ -205,7 +262,7 @@ plot_history_effects <- function(dat, pp, hist_type='S', n_hist=3, p_random=0.5)
   legend_outside('topright', legend_text=c('stimulus'), pch=c(20), col=2, border=NA, bty='n')
 }
 
-#plot_history_effects(dat, pp)
+# plot_history_effects(dat, pp)
 
 ## Spectrum
 load_save_spectrum <- function(dat, dat_fn, by.postn=FALSE, detrend, demean, overwrite=FALSE) {
