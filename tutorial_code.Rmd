@@ -623,7 +623,7 @@ plot_history_effects(dat, pp, degree=2)
 ```{r RM_fit_pp_check2}
 plot_history_effects(dat, pp, degree=1)
 ```
-```{r SM_RM_specify}
+```{r SM_RM_specify, eval=FALSE}
 dat$Stim1 <- ifelse(dat$S=='even', 1, -1)
 dat$Stim2 <- dat$Stim1*Hmisc::Lag(dat$Stim1,1)
 SM_RM_trend <- make_trend(cov_names=c('Stim1', 'Stim2'),
@@ -653,10 +653,14 @@ emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
            fileName='./samples/ds1_SMB_RMB.RData')
 pp <- predict(emc, n_cores=10)
 save(pp, file='./samples/ds1_SMB_RMB_pps.RData')
-
+```
+```{r load_RM_SM, include=FALSE}
+load('./samples/ds1_SMB_RMB_pps.RData')
+load('./samples/ds1_SMB_RMB.RData')
+```
+```{r plot_RM_SM}
 plot_history_effects(dat, pp, degree=1)
 plot_history_effects(dat, pp, degree=2)
-
 ```
 
 While the alternation effects are relatively small in this dataset, formal model comparison suggests that the inclusion of the RM mechanism sufficiently improves the quality of fit to warrant the additional model complexity:
@@ -807,7 +811,7 @@ load('./samples/ds1_AMa_DDM_pps.RData')
 ```
 
 ```{r ddm_AM_pp_check}
-plot_error_effects(dat, pp)
+plot_error_effects(dat, pp_ddm)
 
 # and loses model comparisons again
 #compare(sList=list(rdm=get(load('./samples/ds1_AM.RData')),
