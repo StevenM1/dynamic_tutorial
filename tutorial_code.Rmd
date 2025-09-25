@@ -551,10 +551,126 @@ for(subject in 1:3) {
 ```
 
 
+## Repetition/alternation memory
+
+The stimulus-memory mechanism accounts for what Jones et al. (2014) termed first-degree recency effects: They depend on stimulus identity (e.g., 'odd' or 'even'). There are also second-degree recency effects, which depend on sequential properties - i.e., whether stimuli are repetitions or alternations. It is easy to implement such a mechanism with a delta rule as well. If we code the stimuli as $S_t \in {-1, 1}$, then multiplying $S_t$ with $S_{t-1}$ tells us whether $S_t$ repeats (outcome 1) or alternates (outcome -1) the previous stimulus. Let's hypothesize that participants keep track of the repetition rate using a repetition memory (RM). That could make use ofthe delta rule:
+
+$$ Q_{RM,t+1} = Q_{RM,t} + \alpha_{RM} \cdot (S_{t-1}S_{t} - Q_{RM,t}), \quad S \in \{-1, 1\} $$
+$Q_{RM}$ is a latent representation for the belief that the stimulus will repeat itself. We could hypothesize that, if participants believe that the stimulus is repeating, the threshold corresponding the choice option that repeats the previous stimulus is lower compared to the one that alternates - and vice versa. To implement this, we need to parametrise the thresholds as repeat/alternate:
+
+$$ B_{repeat} = B_{mean} + B_{lR2d} $$ $$ B_{alternate} = B_{mean} - B_{lR2d} $$
+The $B_{lR2d}$ term is the parameter influenced by the updated covariate—however, since we do not necessarily expect an across-trial *mean* difference between thresholds, we set $B_{lR2d}$ as a constant to 0.
+
+Using a linear base, we then allow the threshold difference to vary on a trial-by-trial basis with
+
+$$ B_{lR2d,t} = B_{lR2d} + w_{RM} \cdot Q_{RM,t} $$
+Note the extra parameter here: $w_{RM}$.
+
+Let's implement this step by step. First, let's add $S_{t-1}S_{t}$ to the data, as `dat$Stim2`. This will be our new covariate. It should influence `B_lR2d`. `lR2` can be created by `EMC2` by passing a function.
+
+```{r RM_specify}
+dat$Stim1 <- ifelse(dat$S=='even', 1, -1)
+dat$Stim2 <- dat$Stim1*Hmisc::Lag(dat$Stim1,1)
+RM_trend <- make_trend(cov_names=c('Stim2'),
+                        kernels = 'delta',
+                        par_names='B_lR2d',
+                        bases='lin',
+                        premap=TRUE,
+                        filter_lR=TRUE)  
+ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
+
+design_RDM_RM <- design(model=RDM,
+                         data=dat,
+                         contrast=list(lM=ADmat, lR=ADmat, lR2=ADmat),
+                         covariates='Stim2',
+                         functions=list(lR2=function(x) {
+                           lR2 <- as.numeric(x$lR)==as.numeric(Hmisc::Lag(x$S,2))
+                           lR2[is.na(lR2)] <- TRUE
+                           factor(lR2, levels=c(1,0), labels=c('rep', 'alt'))
+                         }),
+                         matchfun=function(d) d$S==d$lR,
+                         formula=list(B ~ lR2, v ~ lM, t0 ~ 1),
+                         trend=RM_trend,
+                         constants=c('B_lR2d'=0, 'B_lR2d.q0'=0))
+```
+
+Before fitting, we might want to simulate some data to test whether simulated data indeed shows second-degree recency effects.
+
+```{r RM_sim}
+p_vector <- sampled_pars(design_RDM_RM)
+p_vector[1:6] <- c(log(2), log(1), .5, log(.15), 2, qnorm(0.1))
+simDat <- make_data(p_vector, design_RDM_RM, data=dat)
+plot_history_effects(dat=simDat, degree=2)
+```
+
+Which generates the expected pattern: if the previous trials were repeats, there is a tendency to repeat on the current trial, and that response will be faster compared to an alternation trial. Now let's see what it looks like in the real data:
+
+```{r RM_fit, eval=FALSE}
+emc <- make_emc(dat, design=design_RDM_RM, compress=FALSE)
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+           fileName='./samples/ds1_RMB.RData')
+pp <- predict(emc, n_cores=10)
+save(pp, file='./samples/ds1_RMB_pps.RData')
+```
+
+```{r RM_fit_pp_load, include=FALSE}
+load('./samples/ds1_RMB_pps.RData')
+```
+
+```{r RM_fit_pp_check}
+plot_history_effects(dat, pp, degree=2)
+```
+```{r RM_fit_pp_check2}
+plot_history_effects(dat, pp, degree=1)
+```
+```{r SM_RM_specify}
+dat$Stim1 <- ifelse(dat$S=='even', 1, -1)
+dat$Stim2 <- dat$Stim1*Hmisc::Lag(dat$Stim1,1)
+SM_RM_trend <- make_trend(cov_names=c('Stim1', 'Stim2'),
+                        kernels = c('delta', 'delta'),
+                        par_names=c('B_lRd', 'B_lR2d'),
+                        bases=c('lin', 'lin'),
+                        premap=TRUE,
+                        filter_lR=TRUE)  
+
+design_RDM_RM <- design(model=RDM,
+                         data=dat,
+                         contrast=list(lM=ADmat, lR=ADmat, lR2=ADmat),
+                         covariates=c('Stim1', 'Stim2'),
+                         functions=list(lR2=function(x) {
+                           lR2 <- as.numeric(x$lR)==as.numeric(Hmisc::Lag(x$S,2))
+                           lR2[is.na(lR2)] <- TRUE
+                           factor(lR2, levels=c(1,0), labels=c('rep', 'alt'))
+                         }),
+                         matchfun=function(d) d$S==d$lR,
+                         formula=list(B ~ lR2+lR, v ~ lM, t0 ~ 1),
+                         trend=SM_RM_trend,
+                         constants=c('B_lR2d'=0, 'B_lR2d.q0'=0,
+                                     'B_lRd'=0, 'B_lRd.q0'=0))
+
+emc <- make_emc(dat, design=design_RDM_RM, compress=FALSE)
+emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+           fileName='./samples/ds1_SMB_RMB.RData')
+pp <- predict(emc, n_cores=10)
+save(pp, file='./samples/ds1_SMB_RMB_pps.RData')
+
+plot_history_effects(dat, pp, degree=1)
+plot_history_effects(dat, pp, degree=2)
+
+```
+
+While the alternation effects are relatively small in this dataset, formal model comparison suggests that the inclusion of the RM mechanism sufficiently improves the quality of fit to warrant the additional model complexity:
+
+```{r SMRM_comparison}
+emc_SMB <- get(load('./samples/ds1_SMB.RData'))
+emc_SMB_RMB <- get(load('./samples/ds1_SMB_RMB.RData'))
+compare(list('SM'=emc_SMB, 'SM+RM'=emc_SMB_RMB), BayesFactor=FALSE)
+```
+
 
 ## Stimulus memory: DDM and drift rate effects
 
-The example above replicates Miletic et al. (2025) by assuming an RDM and assuming that stimulus memory causes a threshold (start point) bias. *EMC2* is flexibly designed to implement your own hypotheses. For example, we can propose a DDM instead and hypothesize that drift rates rather than start points are biased. This can be implemented as follows:
+The examples above mimick Miletic et al. (2025) by using an RDM and assuming that stimulus memory causes a threshold (start point) bias. *EMC2* is flexibly designed to implement your own hypotheses. For example, we can propose a DDM instead and hypothesize that drift rates rather than start points are biased. This can be implemented as follows:
 
 ```{r ddm_example, eval=FALSE}
 trend_SM_DDM <- make_trend(cov_names='Stim1',
