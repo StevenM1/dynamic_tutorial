@@ -553,24 +553,24 @@ for(subject in 1:3) {
 
 ## Repetition/alternation memory
 
-The stimulus-memory mechanism accounts for what Jones et al. (2014) termed first-degree recency effects: They depend on stimulus identity (e.g., 'odd' or 'even'). There are also second-degree recency effects, which depend on sequential properties - i.e., whether stimuli are repetitions or alternations. It is easy to implement such a mechanism with a delta rule as well. If we code the stimuli as $S_t \in {-1, 1}$, then multiplying $S_t$ with $S_{t-1}$ tells us whether $S_t$ repeats (outcome 1) or alternates (outcome -1) the previous stimulus. Let's hypothesize that participants keep track of the repetition rate using a repetition memory (RM). That could make use ofthe delta rule:
+The stimulus-memory mechanism accounts for what Jones et al. (2014) termed *first-degree* recency effects: They depend on stimulus identity (e.g., 'odd' or 'even'). There are also *second-degree* recency effects, which depend on sequential properties - i.e., whether stimuli are repetitions or alternations of those stimuli before. It is easy to implement such a mechanism with a delta rule as well. If we code the stimuli as $S_t \in {-1, 1}$, then the multiplication $S_{t-1}S_{t}$ indicates if trial $t$ repeats (outcome 1) or alternates (outcome -1) trial $t-1$. Let's hypothesize that participants keep track of the repetition rate using a repetition memory (RM). That could make use of the delta rule:
 
 $$ Q_{RM,t+1} = Q_{RM,t} + \alpha_{RM} \cdot (S_{t-1}S_{t} - Q_{RM,t}), \quad S \in \{-1, 1\} $$
 $Q_{RM}$ is a latent representation for the belief that the stimulus will repeat itself. We could hypothesize that, if participants believe that the stimulus is repeating, the threshold corresponding the choice option that repeats the previous stimulus is lower compared to the one that alternates - and vice versa. To implement this, we need to parametrise the thresholds as repeat/alternate:
 
 $$ B_{repeat} = B_{mean} + B_{lR2d} $$ $$ B_{alternate} = B_{mean} - B_{lR2d} $$
-The $B_{lR2d}$ term is the parameter influenced by the updated covariate—however, since we do not necessarily expect an across-trial *mean* difference between thresholds, we set $B_{lR2d}$ as a constant to 0.
+Like before, we are making use of an advantage-difference parametrisation for the thresholds here, but the difference $B_{lR2d}$ parameter here codes accumulators by whether they repeat or alternate the previous stimuli. This $B_{lR2d}$ term is the parameter influenced by the updated covariate. Since we do not necessarily expect an across-trial *mean* difference between thresholds, we set $B_{lR2d}$ itself as a constant to 0.
 
 Using a linear base, we then allow the threshold difference to vary on a trial-by-trial basis with
 
 $$ B_{lR2d,t} = B_{lR2d} + w_{RM} \cdot Q_{RM,t} $$
-Note the extra parameter here: $w_{RM}$.
+Again introducing a weighting parameter: $w_{RM}$.
 
-Let's implement this step by step. First, let's add $S_{t-1}S_{t}$ to the data, as `dat$Stim2`. This will be our new covariate. It should influence `B_lR2d`. `lR2` can be created by `EMC2` by passing a function.
+Let's implement this step by step. First, let's add $S_{t-1}S_{t}$ to the data, as `dat$Stim2`. This will be our new covariate. It should affect `B_lR2d` with a linear basis. Contrary to `lR`, the `lR2` factor is not automatically created by *EMC2*, so we must pass a function to design that creates it for us..
 
 ```{r RM_specify}
-dat$Stim1 <- ifelse(dat$S=='even', 1, -1)
-dat$Stim2 <- dat$Stim1*Hmisc::Lag(dat$Stim1,1)
+dat$Stim1 <- ifelse(dat$S=='even', 1, -1)      # S_{t}
+dat$Stim2 <- dat$Stim1*Hmisc::Lag(dat$Stim1,1) # S_{t-1}S_{t}
 RM_trend <- make_trend(cov_names=c('Stim2'),
                         kernels = 'delta',
                         par_names='B_lR2d',
@@ -578,32 +578,39 @@ RM_trend <- make_trend(cov_names=c('Stim2'),
                         premap=TRUE,
                         filter_lR=TRUE)  
 ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
-
+make_lR2 <- function(x) {
+  # note that we need to use lag 2, since the dadm has one row per accumulator
+  lR2 <- as.numeric(x$lR)==as.numeric(Hmisc::Lag(x$S,2))
+  # The first trial has no repeat/alternate.
+  # However, since we set B_lR2d.q0, we can set lR2 for this trial
+  # arbitrarily TRUE or FALSE -- B_lR2d_{1} is always 0.
+  lR2[is.na(lR2)] <- TRUE  
+  factor(lR2, levels=c(1,0), labels=c('rep', 'alt'))
+}
 design_RDM_RM <- design(model=RDM,
                          data=dat,
                          contrast=list(lM=ADmat, lR=ADmat, lR2=ADmat),
                          covariates='Stim2',
-                         functions=list(lR2=function(x) {
-                           lR2 <- as.numeric(x$lR)==as.numeric(Hmisc::Lag(x$S,2))
-                           lR2[is.na(lR2)] <- TRUE
-                           factor(lR2, levels=c(1,0), labels=c('rep', 'alt'))
-                         }),
+                         functions=list(lR2=make_lR2),
                          matchfun=function(d) d$S==d$lR,
                          formula=list(B ~ lR2, v ~ lM, t0 ~ 1),
                          trend=RM_trend,
                          constants=c('B_lR2d'=0, 'B_lR2d.q0'=0))
 ```
 
-Before fitting, we might want to simulate some data to test whether simulated data indeed shows second-degree recency effects.
+Before fitting, we might want to simulate some data to test whether simulated data indeed demonstrates second-degree recency effects.
 
 ```{r RM_sim}
 p_vector <- sampled_pars(design_RDM_RM)
 p_vector[1:6] <- c(log(2), log(1), .5, log(.15), 2, qnorm(0.1))
 simDat <- make_data(p_vector, design_RDM_RM, data=dat)
+# the plot_history_effects()-function takes an additional argument:
+# degree, which can be 1 for first-degree or 2 for second-degree
+# effects
 plot_history_effects(dat=simDat, degree=2)
 ```
 
-Which generates the expected pattern: if the previous trials were repeats, there is a tendency to repeat on the current trial, and that response will be faster compared to an alternation trial. Now let's see what it looks like in the real data:
+Which generates the expected pattern: if the previous trials were repeats, the model predicts participants are more likely to repeat on the current trial. Furthermore, a 'repeat' response would be faster than an 'alternate' response. Now let's fit the model to see the strength of these effects in real data:
 
 ```{r RM_fit, eval=FALSE}
 emc <- make_emc(dat, design=design_RDM_RM, compress=FALSE)
@@ -623,6 +630,9 @@ plot_history_effects(dat, pp, degree=2)
 ```{r RM_fit_pp_check2}
 plot_history_effects(dat, pp, degree=1)
 ```
+
+The second-degree recency effects are fitted well, but the first-degree effects now seem off. Perhaps a combination would work best.
+
 ```{r SM_RM_specify, eval=FALSE}
 dat$Stim1 <- ifelse(dat$S=='even', 1, -1)
 dat$Stim2 <- dat$Stim1*Hmisc::Lag(dat$Stim1,1)
