@@ -63,7 +63,7 @@
 # SM effects
 add_prev <- function(dat, n_hist, levels=c('l', 'r')) {
   for(hist_type in c('S', 'R')) {
-    for(trial in 1:n_hist) {
+    for(trial in 0:n_hist) {
       dat[,paste0(hist_type,'minus',trial)] <- factor(substr(Hmisc::Lag(dat[,hist_type], trial), 1, 1), levels=levels)
     }
   }
@@ -140,7 +140,20 @@ recode_RA <- function(dat) {
   dat[,!colnames(dat) %in% c('Srep', 'Rrep')]
 }
 
-plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random=0.5, degree=1) {
+plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, hist_from=1, p_random=0.5, degree=1, ...) {
+  opts <- list(...)
+  
+  if(length(degree) > 1) {
+    par(mfrow=c(2,2))
+    for(degree_ in degree) {
+      plot_history_effects(dat=dat, pp=pp, hist_type=hist_type, n_hist=n_hist, p_random=p_random, degree=degree_, nopar=TRUE, ...)
+    }
+    return(invisible(NULL))
+  } else {
+    if(!'nopar' %in% names(opts)) par(mfcol=c(1,2))
+    #plot_history_effects(dat=dat, pp=pp, hist_type=hist_type, n_hist=n_hist, p_random=p_random, degree=degree, ...)
+  }
+  
   if(degree == 2) {
     dat <- recode_RA(dat)
     dat <- dat[!is.na(dat$S),]
@@ -180,10 +193,9 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random
     pp <- pp[!is.na(pp[,paste0('Sminus', n_hist)]),]
   }
   
-  par(mfcol=c(1,2))
   colN <- toupper(substr(hist_type,1,1))
   prevD <- prevPP <- NULL
-  for(trial in 1:n_hist) {
+  for(trial in hist_from:n_hist) {
     prevD <- paste0(prevD, dat[,paste0(colN,'minus',trial)])
     if(!is.null(pp)) {
       prevPP <- paste0(prevPP, pp[,paste0(colN,'minus',trial)])
@@ -216,7 +228,11 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random
   labels_rev <- sapply(agg2$prev[agg2$R!=is_Rone], rev_str)
   axis(side=1, at=x, labels=labels_rev, las=3)
   
-  legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
+  if(!is.null(pp)) {
+    legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
+  } else {
+    legend_outside('topleft', legend_text=c('data'), col=c(1), lwd=c(1), lty=c(1), pch=c(4), bty = "n")
+  }
   legend_outside('topright', legend_text=c(paste0('R=', is_Rone_label), paste0('R=', is_Rtwo_label)), fill=c(1,2), border=NA, bty='n')
   
   if(!is.null(pp)) {
@@ -224,6 +240,9 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random
     arrows(x0=x, y0=agg3pp$rt[agg3pp$R!=is_Rone,1], y1=agg3pp$rt[agg3pp$R!=is_Rone,3], angle=90, code=3, length=0.025, col=2)
     lines(x, agg3pp$rt[agg3pp$R==is_Rone,2], col=1)
     lines(x, agg3pp$rt[agg3pp$R!=is_Rone,2], col=2)
+  } else {
+    lines(x,agg2$rt[agg2$R==is_Rone])
+    lines(x,agg2$rt[agg2$R!=is_Rone], col=2)
   }
   # 2. Choice ~ history
   agg3 <- aggregate(choice~subjects*prev, dat, mean)
@@ -250,6 +269,8 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random
   if(!is.null(pp)) {
     arrows(x0=x, y0=agg5pp[,2][,1], y1=agg5pp[,2][,3], angle=90, code=3, length=0.025, col=1)
     lines(x=x, y=agg5pp[,2][,2], col=1)
+  } else {
+    lines(x,agg4$choice, col=1)
   }
   # 3. Stimulus ~ history
   x <- 1:length(agg6$prev)
@@ -258,7 +279,11 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, p_random
   
   labels_rev <- sapply(agg6$prev, rev_str)
   axis(side=1, at=x, labels=labels_rev, las=3)
-  legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
+  if(!is.null(pp)) {
+    legend_outside('topleft', legend_text=c('data', 'model'), col=c(1,1), lwd=c(NA,1), lty=c(NA,1), pch=c(4,NA), bty = "n")
+  } else {
+    legend_outside('topleft', legend_text=c('data'), col=c(1), lwd=c(1), lty=c(1), pch=c(4), bty = "n")
+  }
   legend_outside('topright', legend_text=c('stimulus'), pch=c(20), col=2, border=NA, bty='n')
 }
 
