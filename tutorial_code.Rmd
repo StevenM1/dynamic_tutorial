@@ -727,7 +727,7 @@ compare(sList=list(rdm=get(load('./samples/ds1_SMB.RData')),
                    ddm=get(load('./samples/ds1_SMv_DDM.RData'))))
 ```
 
-## Mechanisms of dynamics: Accuracy memory
+# Mechanisms of dynamics: Accuracy memory
 
 Accuracy memory follows the same logic as above, with a different covariate (errors) and a different parameter (urgency, `v`). Errors are the inverse of accuracy; they are 0 when the response matches the stimulus, and 1 otherwise. Unlike the presented stimulus, accuracy/error is not a static property of the experimental design but depends on the observed behavior. This is important when simulating new data - the covariate in question is not the *empircally-observed* accuracy on any given trial, but the *newly-simulated* accuracy.
 
@@ -744,7 +744,6 @@ design_RDM_AM <- design(model=RDM,
                         data=dat,
                         contrast=list(lM=ADmat, lR=ADmat),
                         functions=list(error=function(x) x$S!=x$R),
-                        covariates='error',
                         matchfun=function(d) d$S==d$lR,
                         transform=list(lower=c(v.alpha=0.01)),
                         formula=list(B ~ 1, v ~ lM, t0 ~ 1, s~lM),
@@ -776,7 +775,7 @@ Accuracy memory can explain error-related effects such as post-error slowing. To
 ```{r AM_pp_gen, eval=FALSE}
 emc <- get(load('./samples/ds1_AM.RData'))
 
-pp <- predict(emc, n_cores=20, conditional_on_data=FALSE)
+pp <- predict(emc, n_cores=40, conditional_on_data=FALSE)
 save(pp, file='./samples/ds1_AM_pps.RData')
 ```
 
@@ -814,7 +813,7 @@ However, this again does not appear to fit as well qualitatively, and loses mode
   
 ```{r ddm_example_fit_AM, eval=FALSE}
 emc <- get(load('./samples/ds1_AMa_DDM.RData'))
-pp_ddm <- predict(emc, n_cores=10, conditional_on_data=FALSE)
+pp_ddm <- predict(emc, n_cores=40, conditional_on_data=FALSE)
 save(pp_ddm, file='./samples/ds1_AMa_DDM_pps.RData')
 ```
 
@@ -831,12 +830,12 @@ plot_error_effects(dat, pp_ddm)
 ```
 
 
-### Special case: Fluency memory
-  
+# Special case: Fluency memory
+
 Fluency memory is a formalization of the idea that participants adjust their behavior according to perceived difficulty. To estimate perceived difficulty, we rely on a few simplifying assumptions: participants can quantify (1) their thresholds, and (2) their response time. In race models, the ratio of threshold over response time constitutes a measure of mean speed, which can be used as a proxy for difficulty. After all, we expect processing efficiency to be lower for difficult trials than for easy trials. Formally, $Q_{FM,t+1}=Q_{FM,t}+\alpha_{FM}(b_{t}/rt_{t}-Q_{FM,t})$. 
 
 Here, we implement this using a custom kernel.
-  
+
 ```{r trend_FM, eval=FALSE}
 tf <- tempfile(fileext = ".cpp")
 writeLines(c(
@@ -901,20 +900,13 @@ design_FM <- design(model=RDM,
                     trend=trend_FM)
 prior_FM <- prior(design_FM, mu_mean=c('B'=2), mu_sd=c('B'=0.5))
 emc <- make_emc(dat, design=design_FM, compress=FALSE, prior_list=prior_FM)
-#save(emc, file='./samples/ds1_FM_new.RData')
-#fit(emc, cores_per_chain=1, cores_for_chains=1)
-
-
 emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
            fileName='samples/ds1_FM.RData')
 
 load('./samples/ds1_FM.RData')
 emc <- fix_custom_kernel_pointers(emc, trend_FM)
 check(emc)
-#debug(EMC2:::map_p)
-#debug(EMC2:::run_trend)
-#debug(make_data)
-pp <- predict(emc, n_cores=20, conditional_on_data=FALSE, n_post = 50, return_trialwise_parameters=TRUE)
+pp <- predict(emc, n_cores=40, conditional_on_data=FALSE, n_post = 50, return_trialwise_parameters=TRUE)
 
 save(pp, file='./samples/ds1_FM_pps.RData')
 ```
