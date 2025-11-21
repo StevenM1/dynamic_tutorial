@@ -919,7 +919,7 @@ pp <- get(load('./samples/ds1_FM_pps.RData'))
 
 ```{r trend_FM_check}
 # convenience function to plot the spectrum
-plotSpectrum(dat=dat, pp=pp, trial_duration=1.265)  # mean trial duration of this task was 1.265 s, which we use to determine the periods
+plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)  # mean trial duration of this task was 1.265 s, which we use to determine the periods
 ```
 
 which demonstrates that fluency can account for the fluctuations that are moderate to fast, but not the slowest fluctuations.

@@ -289,179 +289,179 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S', n_hist=3, hist_fro
 
 # plot_history_effects(dat, pp)
 
-## Spectrum
-load_save_spectrum <- function(dat, dat_fn, by.postn=FALSE, detrend, demean, overwrite=FALSE) {
-  powerSpectraData <- NULL
-  if(!is.null(dat_fn) & !overwrite) {
-    fourier_fn <- gsub('.RData', '_fourier.RData', dat_fn)
-    if(file.exists(fourier_fn)) {
-      powerSpectraData <- EMC2:::loadRData(fourier_fn)
-    }
-  }
-  
-  if(is.null(powerSpectraData)) {
-    powerSpectraData <- getPowerSpectra(dat, by.postn = by.postn, detrend=detrend, demean=demean)
-    if(!by.postn) powerSpectraData <- powerSpectraData[order(powerSpectraData$freq),]  # only order data(?)
-    if(!is.null(dat_fn)) {
-      fourier_fn <- gsub('.RData', '_fourier.RData', dat_fn)
-      save(powerSpectraData, file=fourier_fn)
-    }
-  }
-  return(powerSpectraData)
-}
-
-## Fourier plots
-getPowerSpectra <- function(data, mean.pp=FALSE, by.postn=FALSE,
-                            spans=c(3,5), detrend=TRUE, demean=FALSE, get.log=FALSE) {
-  library(parallel)
-  if(mean.pp) {
-    pp <- data
-    pp <- pp[order(pp$subjects, pp$postn, pp$trials),]
-    powerBySubByPostN <- aggregate(rt~postn*subjects, pp, function(x) as.numeric(spectrum(x, plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)$spec))
-    freqBySubByPostN <- aggregate(rt~postn*subjects, pp, function(x) as.numeric(spectrum(x, plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)$freq))
-    
-    if(is.list(powerBySubByPostN$rt)) {
-      powerBySubByPostN$rt <- do.call(rbind, powerBySubByPostN$rt)
-    }
-    powerBySub <- lapply(unique(powerBySubByPostN$subjects), function(x) apply(powerBySubByPostN[powerBySubByPostN$subjects==x,'rt'],2,mean))
-    meanPower <- apply(do.call(rbind, powerBySub), 2, mean)
-    
-    freqBySubByPostN <- aggregate(rt~postn*subjects, pp, function(x) as.numeric(spectrum(x, plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)$freq))
-    if(is.list(freqBySubByPostN$rt)) {
-      freqBySubByPostN$rt <- do.call(rbind, freqBySubByPostN$rt)
-    }
-    freqBySub <- lapply(unique(freqBySubByPostN$subjects), function(x) apply(freqBySubByPostN[freqBySubByPostN$subjects==x,'rt'],2,mean))
-    meanFreqs <- apply(do.call(rbind, freqBySub), 2, mean)
-    return(data.frame(freq=meanFreqs, power=meanPower))
-  } else if(by.postn) {
-    pp <- data   # the 'data' that were passed are actually posterior predictives
-    pp <- pp[order(pp$subjects, pp$postn, pp$trials),]  # ensure correct ordering
-    
-    # get spectra by subject by postN
-    spectraByPostN <- mclapply(unique(pp$subjects), function(subject) lapply(unique(pp[pp$subjects==subject,'postn']), function(postn) {
-      spectrum(pp[pp$subjects==subject&pp$postn==postn,'rt'], plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)
-    }), mc.cores=10)
-    
-    freqBySubByPostN <- lapply(unique(pp$subjects), function(subject) spectraByPostN[[subject]][[1]]$freq)  # these should all be the same within each subject
-    powerBySubByPostN <- lapply(spectraByPostN, function(x) lapply(x, function(y) y$spec))
-    npostn <- length(powerBySubByPostN[[1]])
-    nsubs <- length(freqBySubByPostN)
-    
-    # Are are frequencies the same?
-    nUniqueLengths <- length(unique(sapply(freqBySubByPostN, length)))
-    if(nUniqueLengths > 1) {
-      # We need to interpolate because varying subjects have varying trial numbers. Find the subject with fewest trials
-      nFrequencies <- min(sapply(freqBySubByPostN, length))
-      frequencies <- freqBySubByPostN[[which.min(sapply(freqBySubByPostN, length))]]
-      
-      # interpolation: ugly for loop, sorry
-      interpolatedPowers <- vector(mode='list', length=nsubs)
-      for(subject in 1:nsubs) {
-        interpolatedPowers[[subject]] <- matrix(NA, nrow=npostn, ncol=nFrequencies)
-        for(postn in 1:npostn) {
-          f <- approxfun(x=freqBySubByPostN[[subject]], y=powerBySubByPostN[[subject]][[postn]])
-          interpolatedPowers[[subject]][postn,] <- f(frequencies)
-        }
-      }
-      
-      # now get across-subject mean per posterior predictive
-      meanpowerByPostN <- do.call(rbind, lapply(1:npostn, function(postn) apply(do.call(rbind, lapply(interpolatedPowers, function(x) x[postn,])), 2, mean)))
-    } else {
-      frequencies <- freqBySubByPostN[[1]]
-      tmp <- lapply(powerBySubByPostN, function(x) do.call(rbind, x))
-      meanpowerByPostN <- do.call(rbind, lapply(1:npostn, function(postn) apply(do.call(rbind, lapply(tmp, function(x) x[postn,])), 2, mean)))
-    }
-    return(list(freq=frequencies, power=meanpowerByPostN))
-  } else {
-    # estimate power spectrum by subject
-    spectra <- lapply(unique(data$subjects), function(x) spectrum(data[data$subjects==x, 'rt'], plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log))
-    freqsBySub <- lapply(spectra, function(x) x$freq)
-    powerBySub <- lapply(spectra, function(x) x$spec)
-    
-    # not all subjects have the same trial numbers.
-    # As a result, the actual frequencies at which we have a power estimate differ per subject, so we need to interpolate
-    approximators <- mapply(function(x,y) approxfun(x=x,y=y), freqsBySub, powerBySub)
-    frequencies <- freqsBySub[[which.min(sapply(freqsBySub, length))]]    # get the frequencies corresponding to the shortest range(?)
-    interpolatedPowers <- do.call(rbind, lapply(approximators, function(x) x(frequencies))) # this has shape [nSubjects x nFrequencies]
-    
-    meanPower <- apply(interpolatedPowers, 2, mean)
-    return(data.frame(freq=frequencies, power=meanPower))
-  }
-}
-
-plotSpectrum <- function(dat, pp, pp2=NULL,
-                         dat_fn=NULL, pp_fn=NULL, pp2_fn=NULL,
-                         xlab='', ylab='', main='', add.legend=FALSE, ylim=NULL, plot.log=TRUE, xlim=NULL, detrend=FALSE,
-                         demean=TRUE,
-                         trial_duration=NULL, full_x=TRUE, plot_xticklabels=TRUE, overwrite=TRUE) {
-  powerSpectraData <- load_save_spectrum(dat, dat_fn, detrend=detrend, demean=demean, overwrite=overwrite)
-  
-  if(plot.log) { f <- function(x) log(x) } else { f <- function(x) x }
-  if(is.null(trial_duration)) {
-    plot(x=f(powerSpectraData$freq), y=f(powerSpectraData$power), xlab=xlab, ylab=ylab, type='n', main=main, ylim=ylim, xlim=xlim)
-  } else {
-    # frequencies in Hz
-    x_axis_ticks_seconds <- c(3600, 30*60, 15*60, 5*60, 2*60, 60, 30, 5, 1)
-    x_axis_ticks_hz <- 1/x_axis_ticks_seconds
-    x_axis_ticks_1_over_trial <- x_axis_ticks_hz*trial_duration    ## NB
-    # ylim <- range(f(powerSpectraData$power))
-    
-    # which()
-    powers <- f(powerSpectraData$power)
-    freqs <- f(powerSpectraData$freq)
-    
-    if(!full_x) {
-      idx <- freqs>=(log(x_axis_ticks_1_over_trial)[4]-0.2)
-    } else {
-      idx <- rep(TRUE, length(powerSpectraData$freq))
-    }
-    #    xlim <- c(log(x_axis_ticks_1_over_trial)[4], max(freqs))
-    #    ylim <- range(powers[freqs>=xlim[1]], na.rm=TRUE)
-    
-    plot(x=f(powerSpectraData$freq)[idx], y=f(powerSpectraData$power)[idx], xlab=xlab, ylab=ylab, type='n', main=main, ylim=ylim, xlim=xlim, xaxt='n')
-    if(plot_xticklabels) {
-      axis(side=1, at=log(x_axis_ticks_1_over_trial), labels=c('1 hr', '30 m', '15 m', '5 m', '2 m', '1 m', '30 s', '5 s', '1 s'), las=2)
-    } else {
-      axis(side=1, at=log(x_axis_ticks_1_over_trial), labels=rep('', length(x_axis_ticks_1_over_trial)), las=2)
-    }
-  }
-  
-  
-  if(!is.null(pp)) {
-    powerSpectraModel <- load_save_spectrum(pp, pp_fn, by.post=TRUE, detrend=detrend, demean=demean, overwrite=overwrite)
-    #    powerSpectraModel <- powerSpectraModel(pp, by.postn=TRUE, detrend=detrend, demean=demean)
-    for(i in 1:nrow(powerSpectraModel$power)) {
-      lines(x=f(powerSpectraModel[[1]]),
-            y=f(powerSpectraModel[[2]][i,]),
-            col=adjustcolor(3, alpha.f=.1))
-    }
-    
-    if(!is.null(pp2)) {
-      powerSpectraModel2 <- load_save_spectrum(pp2, pp2_fn, by.post=TRUE, detrend=detrend, demean=demean)
-      #      powerSpectraModel2 <- getPowerSpectra(pp2, by.postn=TRUE, detrend=detrend, demean=demean)
-      for(i in 1:nrow(powerSpectraModel2$power)) {
-        lines(x=f(powerSpectraModel2[[1]]),
-              y=f(powerSpectraModel2[[2]][i,]),
-              col=adjustcolor(3, alpha.f=.1))
-      }
-    }
-    
-    ## get mean of pp
-    freqs <- powerSpectraModel[[1]]
-    powers <- apply(powerSpectraModel[[2]],2,mean)
-    lines(x=f(freqs), y=f(powers), col='dark red')
-    
-    if(!is.null(pp2)) {
-      freqs2 <- powerSpectraModel2[[1]]
-      powers2 <- apply(powerSpectraModel2[[2]],2,mean)
-      lines(x=f(freqs2), y=f(powers2), col='dark red')
-    }
-  }
-  lines(x=f(powerSpectraData$freq), y=f(powerSpectraData$power), col=par()$col)
-  
-  if(!is.null(pp)) lines(x=f(freqs), y=f(powers), col='dark green')
-  if(!is.null(pp2)) lines(x=f(freqs2), y=f(powers2), col='dark red')
-}
+# ## Spectrum
+# load_save_spectrum <- function(dat, dat_fn, by.postn=FALSE, detrend, demean, overwrite=FALSE) {
+#   powerSpectraData <- NULL
+#   if(!is.null(dat_fn) & !overwrite) {
+#     fourier_fn <- gsub('.RData', '_fourier.RData', dat_fn)
+#     if(file.exists(fourier_fn)) {
+#       powerSpectraData <- EMC2:::loadRData(fourier_fn)
+#     }
+#   }
+#   
+#   if(is.null(powerSpectraData)) {
+#     powerSpectraData <- getPowerSpectra(dat, by.postn = by.postn, detrend=detrend, demean=demean)
+#     if(!by.postn) powerSpectraData <- powerSpectraData[order(powerSpectraData$freq),]  # only order data(?)
+#     if(!is.null(dat_fn)) {
+#       fourier_fn <- gsub('.RData', '_fourier.RData', dat_fn)
+#       save(powerSpectraData, file=fourier_fn)
+#     }
+#   }
+#   return(powerSpectraData)
+# }
+# 
+# ## Fourier plots
+# getPowerSpectra <- function(data, mean.pp=FALSE, by.postn=FALSE,
+#                             spans=c(3,5), detrend=TRUE, demean=FALSE, get.log=FALSE) {
+#   library(parallel)
+#   if(mean.pp) {
+#     pp <- data
+#     pp <- pp[order(pp$subjects, pp$postn, pp$trials),]
+#     powerBySubByPostN <- aggregate(rt~postn*subjects, pp, function(x) as.numeric(spectrum(x, plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)$spec))
+#     freqBySubByPostN <- aggregate(rt~postn*subjects, pp, function(x) as.numeric(spectrum(x, plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)$freq))
+#     
+#     if(is.list(powerBySubByPostN$rt)) {
+#       powerBySubByPostN$rt <- do.call(rbind, powerBySubByPostN$rt)
+#     }
+#     powerBySub <- lapply(unique(powerBySubByPostN$subjects), function(x) apply(powerBySubByPostN[powerBySubByPostN$subjects==x,'rt'],2,mean))
+#     meanPower <- apply(do.call(rbind, powerBySub), 2, mean)
+#     
+#     freqBySubByPostN <- aggregate(rt~postn*subjects, pp, function(x) as.numeric(spectrum(x, plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)$freq))
+#     if(is.list(freqBySubByPostN$rt)) {
+#       freqBySubByPostN$rt <- do.call(rbind, freqBySubByPostN$rt)
+#     }
+#     freqBySub <- lapply(unique(freqBySubByPostN$subjects), function(x) apply(freqBySubByPostN[freqBySubByPostN$subjects==x,'rt'],2,mean))
+#     meanFreqs <- apply(do.call(rbind, freqBySub), 2, mean)
+#     return(data.frame(freq=meanFreqs, power=meanPower))
+#   } else if(by.postn) {
+#     pp <- data   # the 'data' that were passed are actually posterior predictives
+#     pp <- pp[order(pp$subjects, pp$postn, pp$trials),]  # ensure correct ordering
+#     
+#     # get spectra by subject by postN
+#     spectraByPostN <- mclapply(unique(pp$subjects), function(subject) lapply(unique(pp[pp$subjects==subject,'postn']), function(postn) {
+#       spectrum(pp[pp$subjects==subject&pp$postn==postn,'rt'], plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log)
+#     }), mc.cores=10)
+#     
+#     freqBySubByPostN <- lapply(unique(pp$subjects), function(subject) spectraByPostN[[subject]][[1]]$freq)  # these should all be the same within each subject
+#     powerBySubByPostN <- lapply(spectraByPostN, function(x) lapply(x, function(y) y$spec))
+#     npostn <- length(powerBySubByPostN[[1]])
+#     nsubs <- length(freqBySubByPostN)
+#     
+#     # Are are frequencies the same?
+#     nUniqueLengths <- length(unique(sapply(freqBySubByPostN, length)))
+#     if(nUniqueLengths > 1) {
+#       # We need to interpolate because varying subjects have varying trial numbers. Find the subject with fewest trials
+#       nFrequencies <- min(sapply(freqBySubByPostN, length))
+#       frequencies <- freqBySubByPostN[[which.min(sapply(freqBySubByPostN, length))]]
+#       
+#       # interpolation: ugly for loop, sorry
+#       interpolatedPowers <- vector(mode='list', length=nsubs)
+#       for(subject in 1:nsubs) {
+#         interpolatedPowers[[subject]] <- matrix(NA, nrow=npostn, ncol=nFrequencies)
+#         for(postn in 1:npostn) {
+#           f <- approxfun(x=freqBySubByPostN[[subject]], y=powerBySubByPostN[[subject]][[postn]])
+#           interpolatedPowers[[subject]][postn,] <- f(frequencies)
+#         }
+#       }
+#       
+#       # now get across-subject mean per posterior predictive
+#       meanpowerByPostN <- do.call(rbind, lapply(1:npostn, function(postn) apply(do.call(rbind, lapply(interpolatedPowers, function(x) x[postn,])), 2, mean)))
+#     } else {
+#       frequencies <- freqBySubByPostN[[1]]
+#       tmp <- lapply(powerBySubByPostN, function(x) do.call(rbind, x))
+#       meanpowerByPostN <- do.call(rbind, lapply(1:npostn, function(postn) apply(do.call(rbind, lapply(tmp, function(x) x[postn,])), 2, mean)))
+#     }
+#     return(list(freq=frequencies, power=meanpowerByPostN))
+#   } else {
+#     # estimate power spectrum by subject
+#     spectra <- lapply(unique(data$subjects), function(x) spectrum(data[data$subjects==x, 'rt'], plot=FALSE, spans=spans, detrend=detrend, demean=demean, log=get.log))
+#     freqsBySub <- lapply(spectra, function(x) x$freq)
+#     powerBySub <- lapply(spectra, function(x) x$spec)
+#     
+#     # not all subjects have the same trial numbers.
+#     # As a result, the actual frequencies at which we have a power estimate differ per subject, so we need to interpolate
+#     approximators <- mapply(function(x,y) approxfun(x=x,y=y), freqsBySub, powerBySub)
+#     frequencies <- freqsBySub[[which.min(sapply(freqsBySub, length))]]    # get the frequencies corresponding to the shortest range(?)
+#     interpolatedPowers <- do.call(rbind, lapply(approximators, function(x) x(frequencies))) # this has shape [nSubjects x nFrequencies]
+#     
+#     meanPower <- apply(interpolatedPowers, 2, mean)
+#     return(data.frame(freq=frequencies, power=meanPower))
+#   }
+# }
+# 
+# plotSpectrum <- function(dat, pp, pp2=NULL,
+#                          dat_fn=NULL, pp_fn=NULL, pp2_fn=NULL,
+#                          xlab='', ylab='', main='', add.legend=FALSE, ylim=NULL, plot.log=TRUE, xlim=NULL, detrend=FALSE,
+#                          demean=TRUE,
+#                          trial_duration=NULL, full_x=TRUE, plot_xticklabels=TRUE, overwrite=TRUE) {
+#   powerSpectraData <- load_save_spectrum(dat, dat_fn, detrend=detrend, demean=demean, overwrite=overwrite)
+#   
+#   if(plot.log) { f <- function(x) log(x) } else { f <- function(x) x }
+#   if(is.null(trial_duration)) {
+#     plot(x=f(powerSpectraData$freq), y=f(powerSpectraData$power), xlab=xlab, ylab=ylab, type='n', main=main, ylim=ylim, xlim=xlim)
+#   } else {
+#     # frequencies in Hz
+#     x_axis_ticks_seconds <- c(3600, 30*60, 15*60, 5*60, 2*60, 60, 30, 5, 1)
+#     x_axis_ticks_hz <- 1/x_axis_ticks_seconds
+#     x_axis_ticks_1_over_trial <- x_axis_ticks_hz*trial_duration    ## NB
+#     # ylim <- range(f(powerSpectraData$power))
+#     
+#     # which()
+#     powers <- f(powerSpectraData$power)
+#     freqs <- f(powerSpectraData$freq)
+#     
+#     if(!full_x) {
+#       idx <- freqs>=(log(x_axis_ticks_1_over_trial)[4]-0.2)
+#     } else {
+#       idx <- rep(TRUE, length(powerSpectraData$freq))
+#     }
+#     #    xlim <- c(log(x_axis_ticks_1_over_trial)[4], max(freqs))
+#     #    ylim <- range(powers[freqs>=xlim[1]], na.rm=TRUE)
+#     
+#     plot(x=f(powerSpectraData$freq)[idx], y=f(powerSpectraData$power)[idx], xlab=xlab, ylab=ylab, type='n', main=main, ylim=ylim, xlim=xlim, xaxt='n')
+#     if(plot_xticklabels) {
+#       axis(side=1, at=log(x_axis_ticks_1_over_trial), labels=c('1 hr', '30 m', '15 m', '5 m', '2 m', '1 m', '30 s', '5 s', '1 s'), las=2)
+#     } else {
+#       axis(side=1, at=log(x_axis_ticks_1_over_trial), labels=rep('', length(x_axis_ticks_1_over_trial)), las=2)
+#     }
+#   }
+#   
+#   
+#   if(!is.null(pp)) {
+#     powerSpectraModel <- load_save_spectrum(pp, pp_fn, by.post=TRUE, detrend=detrend, demean=demean, overwrite=overwrite)
+#     #    powerSpectraModel <- powerSpectraModel(pp, by.postn=TRUE, detrend=detrend, demean=demean)
+#     for(i in 1:nrow(powerSpectraModel$power)) {
+#       lines(x=f(powerSpectraModel[[1]]),
+#             y=f(powerSpectraModel[[2]][i,]),
+#             col=adjustcolor(3, alpha.f=.1))
+#     }
+#     
+#     if(!is.null(pp2)) {
+#       powerSpectraModel2 <- load_save_spectrum(pp2, pp2_fn, by.post=TRUE, detrend=detrend, demean=demean)
+#       #      powerSpectraModel2 <- getPowerSpectra(pp2, by.postn=TRUE, detrend=detrend, demean=demean)
+#       for(i in 1:nrow(powerSpectraModel2$power)) {
+#         lines(x=f(powerSpectraModel2[[1]]),
+#               y=f(powerSpectraModel2[[2]][i,]),
+#               col=adjustcolor(3, alpha.f=.1))
+#       }
+#     }
+#     
+#     ## get mean of pp
+#     freqs <- powerSpectraModel[[1]]
+#     powers <- apply(powerSpectraModel[[2]],2,mean)
+#     lines(x=f(freqs), y=f(powers), col='dark red')
+#     
+#     if(!is.null(pp2)) {
+#       freqs2 <- powerSpectraModel2[[1]]
+#       powers2 <- apply(powerSpectraModel2[[2]],2,mean)
+#       lines(x=f(freqs2), y=f(powers2), col='dark red')
+#     }
+#   }
+#   lines(x=f(powerSpectraData$freq), y=f(powerSpectraData$power), col=par()$col)
+#   
+#   if(!is.null(pp)) lines(x=f(freqs), y=f(powers), col='dark green')
+#   if(!is.null(pp2)) lines(x=f(freqs2), y=f(powers2), col='dark red')
+# }
 
 ## Post-error effects
 plotPES <- function(data_PES=NULL,
