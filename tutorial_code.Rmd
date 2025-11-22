@@ -43,13 +43,16 @@ rm(list = ls())
 # remotes::install_github("ampl-psych/EMC2@trendy_customkernel_fix",dependencies=TRUE, Ncpus=8);.rs.restartR()
 # END TMP
 library(EMC2)
+library(Hmisc)
 set.seed(1) # for reproducibility
 
 # This is some code that contains plotting functions used later on in this tutorial
-source('./plotting_utils.R')
+code_url = 'https://raw.githubusercontent.com/StevenM1/dynamic_tutorial/refs/heads/main/plotting_utils.R'
+source(code_url)
 
 # Load in the data
-load("datasets/dataset_1.RData")
+data_url <- 'https://github.com/StevenM1/dynamic_tutorial/raw/refs/heads/main/datasets/dataset_1.RData'
+load(url(data_url))
 
 # Inspect the data
 print(head(dat))
@@ -101,7 +104,10 @@ Let's clarify with an example by trying to impose a linear trend on thresholds i
 # Add a 'trials' column specifying trial number
 dat <- EMC2:::add_trials(dat)
 
-# Rescale the effect of this covariate to a larger parameter range to help sampling and interpretation (there are 1024 trials so the corresponding estimated parameter (B.w, see below) indexes the change from start to finish of the experiment).
+# Rescale the effect of this covariate to a larger parameter range to help 
+# sampling and interpretation (there are 1024 trials so the corresponding 
+# estimated parameter (B.w, see below) indexes the change from start to 
+# finish of the experiment).
 dat$trials2 <- dat$trials/1024
 lin_trend <- make_trend(cov_names='trials2',
                         kernels = 'lin_incr',
@@ -112,10 +118,11 @@ lin_trend <- make_trend(cov_names='trials2',
 design_RDM_lin_B <- design(model=RDM,
                            data=dat,
                            contrast=list(lM=ADmat),
-                           covariates='trials2',   # specify relevant covariate columns
+                            # specify relevant covariate columns
+                           covariates='trials2',  
                            matchfun=function(d) d$S==d$lR,
                            formula=list(B ~ 1, v ~ lM, t0 ~ 1),
-                           trend=lin_trend)       # add trend
+                           trend=lin_trend)  # add trend
 ```
 
 Note that we are now sampling one extra parameter compared to before, `B.w`, which is the weight of the influence of rescaled trials on thresholds: $B_t = B_0 + B.w*trials2$. Let's define a set of parameters and look at the resulting trial-by-trial thresholds:
@@ -127,7 +134,8 @@ p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
 # Visualize trend
 plot_trend(p_vector, emc=emc,
            par_name='B', subject=1,
-           filter = function(data) data$lR == "odd", main='Threshold for odd')
+           filter = function(data) data$lR == "odd",
+           main='Threshold for odd')
 ```
 
 Clearly, this is not a linear increase. This happens because the threshold is sampled on the log scale, so an exponential transform is applied after mapping the parameter vector to the design cells. Since the linear trend was applied prior to mapping, this linear effect becomes non-linear. `mapped_pars()` can be used to clarify:
@@ -147,18 +155,21 @@ lin_trend2 <- make_trend(cov_names='trials2',
 design_RDM_lin_B2 <- design(model=RDM,
                             data=dat,
                             contrast=list(lM=ADmat),
-                            covariates='trials2',   # specify relevant covariate columns
+                            covariates='trials2',
                             matchfun=function(d) d$S==d$lR,
                             formula=list(B ~ 1, v ~ lM, t0 ~ 1),
-                            trend=lin_trend2)       # add trend
-# note how the trend is added after the transformation
+                            trend=lin_trend2)
+# note how the trend is added after the transformation:
 mapped_pars(design_RDM_lin_B2)
+
 emc <- make_emc(dat, design=design_RDM_lin_B2)
 p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
+
 # Visualize trend
 plot_trend(p_vector, emc=emc,
            par_name='B', subject=1,
-           filter=function(data) data$lR == 'odd', main='Threshold for odd')
+           filter=function(data) data$lR == 'odd', 
+           main='Threshold for odd')
 ```
 
 However, posttransform implies postmap, and many parameters of interest are defined only prior to mapping. So applying trends to those premap parameter types is not possible in combination with posttransform. Instead, the user can tell *EMC2* to estimate parameters on their natural scales by turning off transformations of the relevant parameters. For example:
@@ -174,19 +185,21 @@ design_RDM_lin_B3 <- design(model=RDM,
                             contrast=list(lM=ADmat),
                             covariates='trials2',
                             matchfun=function(d) d$S==d$lR,
-                            # here, we tell EMC2 to sample the threshold on the natural scale
+              # here, we tell EMC2 to sample the threshold on the natural scale
                             transform=list(func=c('B'='identity')),
                             formula=list(B ~ 1, v ~ lM, t0 ~ 1),
-                            trend=lin_trend3)       # add trend
+                            trend=lin_trend3)
+
 # note how the transformation is no longer applied at all
 mapped_pars(design_RDM_lin_B3)
+
 emc <- make_emc(dat, design=design_RDM_lin_B3)
 p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
 
 # visualize trend
 plot_trend(p_vector, emc=emc,
            par_name='B', subject=1,
-           filter= function(data) data$lR == 'odd', main='Threshold for odd')
+           filter=function(data) data$lR == 'odd', main='Threshold for odd')
 ```
 
 This leads to the expected linear effect. As a cautionary note, keep in mind that the default priors in *EMC2* are Gaussian distributions centered on 0 with unit variance. Since many cognitive model parameters cannot be negative (and by default *EMC2* will still enforce that, see help for the bound argument in `?design)`, a N(0,1) prior is poorly chosen for those parameters that do not have support on the real line. For estimation and sampling, this usually has little influence in practice, but it may be important when estimating Bayes Factors.
@@ -194,9 +207,11 @@ This leads to the expected linear effect. As a cautionary note, keep in mind tha
 With all that in mind, we can now start sampling our first model. We set a N(2,0.5) prior on the threshold B to reduce the prior density on negative thresholds. This is a somewhat subjective choice based on earlier experience, so it reflects our (but perhaps not your) prior belief. The rest of the priors are left to their default N(0,1) -- on the scale on which they are sampled -- except B.w, where we set a tight N(0,0.1) prior.
 
 ```{r linear_trend_fit_prep, eval=TRUE}
-prior_linB <- prior(design_RDM_lin_B3, mu_mean=c(B=2, B.w=0), mu_sd=c(B=0.5,B.w=0.1))
+prior_linB <- prior(design_RDM_lin_B3, 
+                    mu_mean=c(B=2, B.w=0), mu_sd=c(B=0.5,B.w=0.1))
 emc <- make_emc(dat, design=design_RDM_lin_B3, prior_list = prior_linB)
-plot(emc, prior=TRUE)
+plot(prior_linB, map=FALSE) # Priors on parameters as defined in the p_vector
+plot(prior_linB, map=TRUE)  # Implied priors after mapping and transforming
 ```
 
 ```{r linear_trend_fit_fit, eval=FALSE}
@@ -223,7 +238,9 @@ pp <- predict(emc, n_cores=9, return_trialwise_parameters=TRUE)
 par(mfrow=c(2,3))
 for(subject in 1:6) {
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
-             par_name='B', subject=subject, filter = function(data) data$lR == 'odd', main=subject)
+             par_name='B', subject=subject, 
+             filter = function(data) data$lR == 'odd', 
+             main=subject)
 }
 ```
 Here, the green shaded area indicated the 95\% credible interval of the posterior on the threshold for each trial. We can also plot the individual thresholds of each posterior predictive separately as lines:
@@ -232,7 +249,8 @@ Here, the green shaded area indicated the 95\% credible interval of the posterio
 par(mfrow=c(2,3))
 for(subject in 1:6) {
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
-             par_name='B', subject=subject, filter = function(data) data$lR == 'odd',
+             par_name='B', subject=subject, 
+             filter = function(data) data$lR == 'odd',
              main=subject, pp_shaded=FALSE)
 }
 ```
@@ -305,17 +323,23 @@ p_vector3 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=1, 'v_lMd.d_ei'=2)
 
 par(mfcol=c(2,3))
 plot_trend(p_vector1, emc=emc_incr, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, main='v correct accumulator', ylim=c(3.5,5))
+           subject=1, filter = function(data) data$lM == TRUE, 
+           main='v correct accumulator', ylim=c(3.5,5))
 plot_trend(p_vector1, emc=emc_incr, par_name='v',
-           subject=1, filter = function(data) data$lM == FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
+           subject=1, filter = function(data) data$lM == FALSE, 
+           main='v incorrect accumulator', ylim=c(1, 2.5))
 plot_trend(p_vector2, emc=emc_incr, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, main='v correct accumulator', ylim=c(3.5,5))
+           subject=1, filter = function(data) data$lM == TRUE, 
+           main='v correct accumulator', ylim=c(3.5,5))
 plot_trend(p_vector2, emc=emc_incr, par_name='v',
-           subject=1, filter = function(data) data$lM == FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
+           subject=1, filter = function(data) data$lM == FALSE, 
+           main='v incorrect accumulator', ylim=c(1, 2.5))
 plot_trend(p_vector3, emc=emc_incr, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, main='v correct accumulator', ylim=c(3.5,5))
+           subject=1, filter = function(data) data$lM == TRUE, 
+           main='v correct accumulator', ylim=c(3.5,5))
 plot_trend(p_vector3, emc=emc_incr, par_name='v',
-           subject=1, filter = function(data) data$lM == FALSE, main='v incorrect accumulator', ylim=c(1, 2.5))
+           subject=1, filter = function(data) data$lM == FALSE, 
+           main='v incorrect accumulator', ylim=c(1, 2.5))
 ```
 
 \begin{tcolorbox}
@@ -344,7 +368,8 @@ trends <- make_trend(par_names=c('B', 'v_lMd'),
 design_multitrend <- design(model=RDM,
                             data=dat,
                             contrast=list(lM=ADmat),
-                            covariates=c('trial_in_block', 'stimulus_repetition'),
+                            covariates=c('trial_in_block', 
+                                         'stimulus_repetition'),
                             matchfun=function(d) d$S==d$lR,
                             transform=list(func=c('v_lMd.w'='exp',
                                                   'B.w'='exp',
@@ -360,15 +385,15 @@ p_vector <- c('B'=1, 'v'=1, 'v_lMd'=2, 't0'=0.1,
 
 par(mfcol=c(1,3))
 plot_trend(p_vector, emc=emc_multitrend, par_name='B',
-           subject=1, filter = function(data) data$lR == 'odd', main='Thresholds',
-           xlab='Trial number')
+           subject=1, filter = function(data) data$lR == 'odd', 
+           main='Thresholds', xlab='Trial number')
 plot_trend(p_vector, emc=emc_multitrend, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, main='Drift rate (matching)',
-           on_x_axis='stimulus_repetition',
+           subject=1, filter = function(data) data$lM == TRUE, 
+           main='Drift rate (matching)', on_x_axis='stimulus_repetition',
            xlab='Stimulus repetition', xlim=c(1,20))
 plot_trend(p_vector, emc=emc_multitrend, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, main='Drift rate (matching)',
-           xlab='Trial number', xlim=c(1,20))
+           subject=1, filter = function(data) data$lM == TRUE, 
+           main='Drift rate (matching)', xlab='Trial number', xlim=c(1,20))
 mapped_pars(design_multitrend)
 ```
 
@@ -412,17 +437,17 @@ p_vector4 <- c('B'=1, 'v'=1, 'v_lMd'=2, 't0'=0.1,
 
 par(mfrow=c(2,2))
 plot_trend(p_vector1, emc=emc_poly, par_name='B',
-           subject=1, filter = function(data) data$lR == 'odd', main='Thresholds',
-           xlab='Trial number')
+           subject=1, filter = function(data) data$lR == 'odd', 
+           main='Thresholds', xlab='Trial number')
 plot_trend(p_vector2, emc=emc_poly, par_name='B',
-           subject=1, filter = function(data) data$lR == 'odd', main='Thresholds',
-           xlab='Trial number')
+           subject=1, filter = function(data) data$lR == 'odd', 
+           main='Thresholds', xlab='Trial number')
 plot_trend(p_vector3, emc=emc_poly, par_name='B',
-           subject=1, filter = function(data) data$lR == 'odd', main='Thresholds',
-           xlab='Trial number')
+           subject=1, filter = function(data) data$lR == 'odd', 
+           main='Thresholds', xlab='Trial number')
 plot_trend(p_vector4, emc=emc_poly, par_name='B',
-           subject=1, filter = function(data) data$lR == 'odd', main='Thresholds',
-           xlab='Trial number')
+           subject=1, filter = function(data) data$lR == 'odd', 
+           main='Thresholds', xlab='Trial number')
 ```
 
 # Mechanisms of dynamics: Stimulus memory
@@ -452,8 +477,7 @@ SM_trend <- make_trend(cov_names=c('Stim1'),
                        kernels = 'delta',
                        par_names='B_lRd',
                        bases='lin',
-                       phase = "premap",
-                       at="lR")  # see advanced note for an explanation of at
+                       phase = "premap")
 design_RDM_SM <- design(model=RDM,
                         data=dat,
                         contrast=list(lM=ADmat, lR=ADmat),
@@ -533,11 +557,13 @@ As before, we can plot the trial-wise parameters with `plot_trend()`. Let's zoom
 par(mfcol=c(2,3))
 for(subject in 1:3) {
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
-             par_name='B', subject=subject, filter= function(data) data$lR == 'odd', 
-             main=paste0(subject, ' odd'),xlim=c(1,20))
+             par_name='B', subject=subject, 
+             filter= function(data) data$lR == 'odd', 
+             main=paste0(subject, ' odd'), xlim=c(1,20))
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
-             par_name='B', subject=subject, filter= function(data) data$lR == 'even', 
-             main=paste0(subject, ' even'),xlim=c(1,20))
+             par_name='B', subject=subject, 
+             filter= function(data) data$lR == 'even', 
+             main=paste0(subject, ' even'), xlim=c(1,20))
 }
 ```
 
@@ -581,8 +607,7 @@ RM_trend <- make_trend(cov_names=c('Stim2'),
                        kernels = 'delta',
                        par_names='B_lR2d',
                        bases='lin',
-                       phase = "premap",
-                       at="lR")
+                       phase = "premap")
 ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
 make_lR2 <- function(x) {
   # note that we need to use lag 2, since the dadm has one row per accumulator
@@ -696,7 +721,8 @@ trend_SM_DDM <- make_trend(cov_names='Stim1',
                            kernels = 'delta',
                            par_names='v',
                            bases='lin',
-                           phase = "premap")
+                           phase = "premap",
+                           at = NULL)
 Smat <- matrix(c(-1,1), nrow = 2,dimnames=list(NULL,"dif"))
 design_DDM <- design(model=DDM,
                      data=dat,
@@ -776,6 +802,7 @@ credint(emc)
 
 Accuracy memory can explain error-related effects such as post-error slowing. To visualize, we can generate posterior predictives and then use a convenience function to plot mean RT as a function of trial number relative to an error. As mentioned above, since the covariate in this case depends on observed behavior, we need to simulate data and determine the covariate one trial at a time. *EMC2* detects whether the covariate is `rt`, `R`, or the output of one of the functions provided to design. If it is, it automatically simulates data trial-by-trial. Because vectorisation is not possible in this case, this way of simulating data is much slower.
 ## NOTE TO SELF -- DOUBLE CHECK IF AUTOMATED DETECTION STILL WORKS AS STATED HERE!!! ##
+## ANDREW it worked for me here! ##
 
 ```{r AM_pp_gen, eval=FALSE}
 emc <- get(load('./samples/ds1_AM.RData'))
@@ -799,7 +826,8 @@ trend_AM_DDM <- make_trend(cov_names='error',
                            kernels = 'delta',
                            par_names='a',
                            bases='lin',
-                           phase='posttransform')
+                           phase='posttransform',
+                           at=NULL)
 Smat <- matrix(c(-1,1), nrow = 2,dimnames=list(NULL,"dif"))
 design_DDM <- design(model=DDM,
                      data=dat,
@@ -849,7 +877,8 @@ writeLines(c(
   "#include \"EMC2/userfun.hpp\"",
   "",
   "// Example: two params (q0, alpha) and three inputs (rt, B, weight)",
-  "Rcpp::NumericVector custom_kernel(Rcpp::NumericMatrix kernel_pars, Rcpp::NumericMatrix input) {",
+  "Rcpp::NumericVector custom_kernel(Rcpp::NumericMatrix kernel_pars, ",
+  "                                  Rcpp::NumericMatrix input) {",
   "  // assume kernels_pars(q0, alpha) and inputs(rt, B, weight)",
   "  int n = input.nrow();",
   "  Rcpp::NumericVector q(n);",
@@ -863,7 +892,8 @@ writeLines(c(
   "    pe[i-1] = (B_t[i-1] / input(i-1,0)) - q[i-1];",
   "    // update: Q_t = Q_t-1 + alpha_t-1 * pe_t-1",
   "    q[i] = q[i-1] + kernel_pars(i-1,1) * pe[i-1];",
-  "    // Apply base to B to get the correct threshold for next trial (needed for PE calculation)",
+  "    // Apply base to B to get the correct threshold for ",
+  "    // next trial (needed for PE calculation)",
   "    B_t[i] = input(i,1) + input(i,2) * q[i];",
   "  }",
   "  return q;",
@@ -899,10 +929,15 @@ design_FM <- design(model=RDM,
                     contrast=list(lM=ADmat),
                     matchfun=function(d) d$S==d$lR,
                     formula=list(B ~ 1, v ~ lM, t0 ~ 1, s~lM),
-                    transform=list(func=c(B='identity'),          # should also update prior in this case
+                    transform=list(func=c(B='identity'),          
                                    lower=c(B.alpha=0.05)),
-                    constants=c('B.q0'=3, 's'=log(1)),            # Why 3? When fitting a static RDM, the mean fit threshold over mean RT ratio is very roughly 3 in this dataset. It serves as a reasonable place to start
+                    constants=c('B.q0'=3, # NB1 
+                                's'=log(1)),            
+                    
                     trend=trend_FM)
+# NB1: Why q0=3? When fitting a static RDM, 
+# the mean fit threshold over mean RT ratio is very roughly 3 
+# in this dataset. It serves as a reasonable place to start
 prior_FM <- prior(design_FM, mu_mean=c('B'=2), mu_sd=c('B'=0.5))
 emc <- make_emc(dat, design=design_FM, compress=FALSE, prior_list=prior_FM)
 emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
@@ -911,7 +946,8 @@ emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
 load('./samples/ds1_FM.RData')
 emc <- fix_custom_kernel_pointers(emc, trend_FM)
 check(emc)
-pp <- predict(emc, n_cores=40, conditional_on_data=FALSE, n_post = 50, return_trialwise_parameters=TRUE)
+pp <- predict(emc, n_cores=40, conditional_on_data=FALSE, n_post = 50, 
+              return_trialwise_parameters=TRUE)
 
 save(pp, file='./samples/ds1_FM_pps.RData')
 ```
@@ -924,7 +960,9 @@ pp <- get(load('./samples/ds1_FM_pps.RData'))
 
 ```{r trend_FM_check}
 # convenience function to plot the spectrum
-plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)  # mean trial duration of this task was 1.265 s, which we use to determine the periods
+plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)  
+# mean trial duration of this task was 1.265 s, 
+# which we use to determine the periods
 ```
 
 The spectrum shows that fluency can account for the much of the power in fluctuations that are moderate to fast, but not the slowest fluctuations. Note that we supplied the mean trial duration to determine the periods, which are then plotted on the x axis. If this is not supplied the x axis is instead log(frequency). 
