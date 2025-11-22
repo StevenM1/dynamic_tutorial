@@ -1,7 +1,9 @@
 ---
 title: "Modelling structured trial-by-trial variability in evidence accumulation"
-author: "Steven Miletić et al."
+author: "Steven Miletić, Niek Stevenson, Luke Strickland, Andrew Heathcote"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
+bibliography: bibliography.bib
+link-citations: true
 output:
   pdf_document:
     highlight: pygments
@@ -25,14 +27,15 @@ header-includes:
 ---
   
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, comment = NA)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, comment = NA,
+                      results='markup', fig.path="figs/")
 ```
 
 # Introduction
 
-In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods. We will utilize the *EMC2* package, assuming some prior knowledge of its functionalities (for reference, see the *EMC2* tutorial). Specifically, we will fit models to dataset 1 from Miletić et al. (2025), which corresponds to the 'choice, short [CS]' condition from Wagenmakers et al. (2004). In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
+In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods. We will utilize the *EMC2* package, assuming some prior knowledge of its functionalities (for reference, see the *EMC2* tutorial [@stevensonEMC2PackageCognitive2024]). Specifically, we will fit models to dataset 1 from [@mileticExplainingMultiScaleChoice2025], which corresponds to the 'choice, short [CS]' condition from [@Wagenmakers2004a]. In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
 
-First, let's load the required packages and data:
+First, let's load the required packages and data (note that you will also need the Hmisc package installed):
 
 ```{r load-data}
 rm(list = ls())
@@ -56,7 +59,7 @@ Here, `subjects` refers to subject number, `S` to the presented stimulus (even/o
 
 ### Baseline models
 
-We begin by setting up the 'static' baseline models without structured trial-by-trial variability. For a comprehensive tutorial on specifying designs in *EMC2*, please refer to the *EMC2* tutorial [ref]. We will set up two baseline models: first using a racing diffusion model (RDM), and then using a diffusion decision model (DDM). In the RDM, we model drift rates with a mean-difference parametrization. The `mapped_pars()` function is useful for tracking how parameter vectors are mapped onto each design cell:
+We begin by setting up the 'static' baseline models without structured trial-by-trial variability. For a comprehensive tutorial on specifying designs in *EMC2*, please refer to the *EMC2* tutoial [@stevensonEMC2PackageCognitive2024]. We will set up two baseline models: first using a racing diffusion model (RDM), and then using a Wiener diffusion model (WDM), which is the diffusion decision model (DDM) without between-trial variabilities (sometimes called the 'simple' DDM). In the RDM, we model drift rates with a mean-difference parametrization. The `mapped_pars()` function is useful for tracking how parameter vectors are mapped onto each design cell:
 
 ```{r design_baseline_rdm}
 # set up contrast matrix for mean-difference parametrisation
@@ -88,18 +91,18 @@ Both the descriptive trends and the formal mechanisms of dynamics work through `
 trend_help()
 ```
 
-The last section, 'phase', warrants some extra attention. In *EMC2*, the user can define parameters using model formula language, as we did above when defining the designs. *EMC2* uses these to create a design matrix by mapping the relevant factors to each design cell. In the case of the RDM, once mapped, in each design cell, only the `v`, `B`, `t0`, `s`, (and optionally `A`) parameters per accumulator remain. However, in many applications, the parameter of interest is defined as a between-accumulator difference (e.g., `v_lMd` in the RDM example above), or a between-condition difference (e.g., the effect of speed-accuracy trade-off cues on thresholds). These parameters only exist pre-mapping, and thus, the trend should be applied prior to mapping by setting `phase='premap'`.
+The last section, 'phase', warrants some extra attention. In *EMC2*, the user can define parameters using model formula language, as we did above when defining the designs. *EMC2* uses these to create a design matrix by mapping the relevant factors to each design cell. In the case of the RDM, once mapped, in each design cell, only the `v`, `B`, `t0`, `s`, (and `A`, its omission in the design above causes it to be fixed to zero) parameters per accumulator remain. However, in many applications, the parameter of interest is defined as a between-accumulator difference (e.g., `v_lMd` in the RDM example above), or a between-condition difference (e.g., the effect of speed-accuracy trade-off cues on thresholds). These parameters only exist pre-mapping, and thus, the trend should be applied prior to mapping by setting `phase='premap'` (the default).
 
-There is an important caveat here. By default, *EMC2* estimates parameters with a lower bound (e.g., non-decision time, thresholds, RDM's drift rates) on the log scale, and parameters with both a lower and upper bound on the probit scale. Parameters are *mapped* on the scale on which they are estimated, and *then* transformed. This also implies that if a trend is applied prior to mapping, the resulting parameters might later be transformed, leading to a potentially unwanted non-linear effect of the covariate on the parameter.
+There is an important caveat here. By default, *EMC2* estimates some parameters with a lower bound (e.g., non-decision time, thresholds, RDM's drift rates) on a log scale, and other parameters with both a lower and upper bound on a probit scale. Parameters are *mapped* on the scale on which they are estimated, and *then* transformed. This also implies that if a trend is applied prior to mapping, the resulting parameters might later be transformed, leading to a potentially unwanted non-linear effect of the covariate on the parameter.
 
-Let's clarify with an example. Let's try to impose a linear trend on thresholds in case of the RDM:
+Let's clarify with an example by trying to impose a linear trend on thresholds in case of the RDM:
   
 ```{r linear_trend_example}
 # Add a 'trials' column specifying trial number
 dat <- EMC2:::add_trials(dat)
 
-# Rescale the effect of this covariate to a larger parameter range to help sampling
-dat$trials2 <- dat$trials/1000
+# Rescale the effect of this covariate to a larger parameter range to help sampling and interpretation (there are 1024 trials so the corresponding estimated parameter (B.w, see below) indexes the change from start to finish of the experiment).
+dat$trials2 <- dat$trials/1024
 lin_trend <- make_trend(cov_names='trials2',
                         kernels = 'lin_incr',
                         par_names='B',
@@ -115,7 +118,7 @@ design_RDM_lin_B <- design(model=RDM,
                            trend=lin_trend)       # add trend
 ```
 
-Note that we are now sampling one extra parameter compared to before, `B.w`, which is the weight of the influence of trial number on thresholds. In $B_t = B_0 + B.w*trial$. Let's define a set of parameters and look at the resulting trial-by-trial thresholds:
+Note that we are now sampling one extra parameter compared to before, `B.w`, which is the weight of the influence of rescaled trials on thresholds: $B_t = B_0 + B.w*trials2$. Let's define a set of parameters and look at the resulting trial-by-trial thresholds:
 
 ```{r linear_trend_example_plot}
 emc <- make_emc(dat, design=design_RDM_lin_B)
@@ -186,9 +189,9 @@ plot_trend(p_vector, emc=emc,
            filter= function(data) data$lR == 'odd', main='Threshold for odd')
 ```
 
-This leads to the expected effect. As a cautionary note, keep in mind that the default priors in *EMC2* are Gaussian distributions centered on 0 with unit variance. Since many cognitive model parameters cannot be negative, a N(0,1) prior is poorly chosen for those parameters that do not have support on the real line. For estimation and sampling, this usually has little influence in practice, but it may be important when estimating Bayes Factors.
+This leads to the expected linear effect. As a cautionary note, keep in mind that the default priors in *EMC2* are Gaussian distributions centered on 0 with unit variance. Since many cognitive model parameters cannot be negative (and by default *EMC2* will still enforce that, see help for the bound argument in `?design)`, a N(0,1) prior is poorly chosen for those parameters that do not have support on the real line. For estimation and sampling, this usually has little influence in practice, but it may be important when estimating Bayes Factors.
 
-With all that in mind, we can now start sampling our first model. We set a N(2,0.5) prior on the threshold B to reduce the prior density on negative thresholds. This is a somewhat subjective choice based on earlier experience, so it reflects my (but perhaps not your) prior belief. The rest of the priors are left to their default N(0,1) -- on the scale on which they are sampled.
+With all that in mind, we can now start sampling our first model. We set a N(2,0.5) prior on the threshold B to reduce the prior density on negative thresholds. This is a somewhat subjective choice based on earlier experience, so it reflects our (but perhaps not your) prior belief. The rest of the priors are left to their default N(0,1) -- on the scale on which they are sampled -- except B.w, where we set a tight N(0,0.1) prior.
 
 ```{r linear_trend_fit_prep, eval=TRUE}
 prior_linB <- prior(design_RDM_lin_B3, mu_mean=c(B=2, B.w=0), mu_sd=c(B=0.5,B.w=0.1))
@@ -197,7 +200,7 @@ plot(emc, prior=TRUE)
 ```
 
 ```{r linear_trend_fit_fit, eval=FALSE}
-emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
                 fileName='./samples/ds1_linB.RData')
 ```
 
@@ -211,12 +214,12 @@ plot_pars(emc)
 credint(emc)
 ```
 
-On a group-level, we find a small (not credible) positive `B.w` -- on average, in this dataset, thresholds appear to increase by \~0.07 over the course of 1000 trials. We can now generate posterior predictives, and while doing that, ask *EMC2* to return the mapped and transformed parameters, which will allow us to visualize the fitted thresholds over trials:
+On a group-level, we find a small (not credible) positive `B.w` -- on average, in this dataset, thresholds appear to increase by \~0.07 over the course of 1024 trials. We can now generate posterior predictives, and while doing that, ask *EMC2* to return the mapped and transformed parameters, which will allow us to visualize the fitted thresholds over trials. Here we see that although there is little change for some participants, for others (e.g, 6) the change is more substantial.
 
 ```{r plot_linear_trend_fitted}
 # By setting return_trialwise_parameters to TRUE, we obtain the parameters 
 # of each iteration as an attribute in the returned object (pp).
-pp <- predict(emc, n_cores=10, return_trialwise_parameters=TRUE)
+pp <- predict(emc, n_cores=9, return_trialwise_parameters=TRUE)
 par(mfrow=c(2,3))
 for(subject in 1:6) {
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
@@ -236,7 +239,7 @@ for(subject in 1:6) {
 
 ### Exponential and power laws
 
-Practice effects tend to be large initially and then gradually decay. Asymptotic functions like exponential or power functions can be used to model such effects. *EMC2* offers increasing and decreasing kernels in both cases. To demonstrate these functional forms:
+Practice effects tend to be large initially and then gradually decay. Asymptotic functions like exponential or power functions can be used to model such effects. *EMC2* offers kernels that enforce either an increase or decrease. To demonstrate these functional forms:
 
 ```{r exponential_plots}
 trend_exp_incr <- make_trend(par_names='B', cov_names = 'trials2',
@@ -276,7 +279,7 @@ plot_trend(p_vector_decr, emc=emc_decr,
 Note that the interpretation of the exponent (`B.e_ei` or `B.e_ed`) depends on the direction: In the increasing case, it corresponds to the asymptote; in the decreasing case, to the intercept.
 
 \begin{tcolorbox}[title=Advanced note: Enforcing a direction]
-Having both increasing and decreasing kernels may appear redundant, since the direction of the effect can also be flipped by the \texttt{w} parameter in the \texttt{lin} base. However, having both increasing and decreasing kernels facilitates enforcing a directional effect. For example, one might hypothesize that \texttt{v\_lMd} increases sharply over the first few trials due to practice effects, and then stabilizes. An increase could be implemented with \texttt{exp\_incr}, but if the sampler converges on negative values of \texttt{w} of the base, the resulting trend is actually decreasing rather than increasing.
+Having both increasing and decreasing kernels may appear redundant, since the direction of the effect can also be flipped by the \texttt{w} parameter in the \texttt{lin} base. However, having both increasing and decreasing kernels facilitates enforcing a directional effect. For example, one might hypothesize that \texttt{v\_lMd} (i.e., the ability to discriminate odd from even) increases sharply over the first few trials due to practice effects, and then stabilizes. An increase could be implemented with \texttt{exp\_incr}, but if the sampler converges on negative values of \texttt{w} of the base, the resulting trend is actually decreasing rather than increasing.
 
 We can force the sampler to sample only increasing trends by restricting the range of \texttt{w}. This can be done by sampling \texttt{w} on the log-scale, and transforming it to the natural scale. Note that transformations applied to parameters relating to the trends are always applied prior to estimating the trend.
 
@@ -327,7 +330,7 @@ dat$block <- as.factor(as.numeric(cut(dat$trials, breaks=3)))
 for(subject in unique(dat$subjects)) {
   dat[dat$subjects==subject,'trial_in_block'] <- ave(
     seq_along(dat[dat$subjects==subject,'block']),
-    dat[dat$subjects==subject,'block'], FUN = seq_along)/1000
+    dat[dat$subjects==subject,'block'], FUN = seq_along)/1024
 }
 # simulate presented digit
 dat$stimulus_repetition <- ave(seq_along(dat$S),
@@ -379,7 +382,7 @@ When a researcher has no strong prior assumptions about the shape of the trend b
 trend_help(kernel='poly4')
 ```
 
-Note that the kernel parameters (`d1, d2, d3, d4`) already weigh the contributions of the individual polynomial terms. As such, this kernel should not be combined with a linear base (`base = 'lin'`), but instead with an additive base (`base = 'add'`). Additionally, we should center the Taylor expansion around the mean of the covariate. The following demonstrates the flexibility of a 4th order polynomial with a few randomly chosen parameter sets:
+Note that the kernel parameters (`d1, d2, d3, d4`) already weigh the contributions of the individual polynomial terms. As such, this kernel should not be combined with a linear base (`base = 'lin'`), but instead with an additive base (`base = 'add'`). Additionally, we should center the Taylor expansion around the mean of the covariate (allowing there to be changes in the direction of the trend, which is not possible if the covariate is always positive). The following demonstrates the flexibility of a 4th order polynomial with a few randomly chosen parameter sets:
 
 ```{r polynomial_full_example}
 dat$tctrd <- dat$trials2-mean(dat$trials2)
@@ -424,17 +427,18 @@ plot_trend(p_vector4, emc=emc_poly, par_name='B',
 
 # Mechanisms of dynamics: Stimulus memory
 
-Models with formal mechanisms of dynamics rely on delta rules. To implement delta rules, we follow the same general logic as above—the delta rule is implemented as a kernel in `make_trend`. Let's implement the stimulus memory mechanism proposed by Miletić et al. (2025). Here, the decision maker keeps track of the probability that a stimulus is even (or odd). The covariate in this case is the stimulus, which we can recode as 1 (even) and -1 (odd). With the delta rule:
+Models with dynamic mechanisms (as opposed to the descriptions of dynamics in the last section) often rely on delta rules. To implement delta rules, we follow the same general logic as above --- the delta rule is implemented as a kernel in `make_trend`. Let's implement the stimulus memory mechanism proposed by Miletić et al. (2025). Here, the decision maker keeps track of the probability that a stimulus is even (or odd). The covariate in this case is the stimulus, which we recode as 1 (even) and -1 (odd) and use in the delta rule:
   
 $$ Q_{SM,t+1} = Q_{SM,t} + \alpha_{SM} \cdot (S_{t} - Q_{SM,t}), \quad S \in \{-1, 1\} $$
     
-The delta rule introduces two extra parameters: a learning rate $\alpha_{SM}$, and a value for $Q$ at the start of the experiment $Q_{SM,0}$. The latter is hard to estimate, and we tend to fix it to a constant—for this rule, a constant of 0 implies equal beliefs in both stimuli.
+The delta rule introduces two extra parameters: a learning rate $\alpha_{SM}$, and a value for $Q$ at the start of the experiment $Q_{SM,0}$. The latter is hard to estimate, and we tend to fix it to a constant—for this rule, a constant of 0 implies a belief that both stimuli occur equally often.
   
-For now, let us assume that stimulus memory influences the relative thresholds: the even threshold increases, and the odd threshold decreases (by the same amount). To achieve this, we need to parameterize thresholds with the same mean-difference parameterization as we used for drift rates. That is,
+For now, let us assume that stimulus memory influences the relative thresholds: the threshold for the even accumulator increases, and the odd threshold decreases (by the same amount). To achieve this, we need to parameterize thresholds with the same mean-difference parameterization as we used for drift rates. That is,
   
-$$ B_{odd} = B_{mean} + B_{lRd} $$ $$ B_{even} = B_{mean} - B_{lRd} $$
+$$ B_{odd} = B_{mean} + B_{lRd} $$
+$$ B_{even} = B_{mean} - B_{lRd} $$
     
-The $B_{lRd}$ term is the parameter influenced by the updated covariate—however, since we do not necessarily expect an across-trial *mean* difference between thresholds, we set $B_{lRd}$ as a constant to 0.
+The $B_{lRd}$ term is the parameter influenced by the updated covariate --- however, since we do not necessarily expect an across-trial *mean* difference between thresholds, we set $B_{lRd}$ as a constant to 0.
   
 Using a linear base, we then allow the threshold difference to vary on a trial-by-trial basis with
   
@@ -468,7 +472,7 @@ emc <- make_emc(dat, design=design_RDM_SM, prior_list = prior_SMB)
 ```
 
 ```{r SM_fit_fit, eval=FALSE}
-emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
            fileName='./samples/ds1_SMB.RData')
 ```
 
@@ -481,7 +485,7 @@ check(emc)
 plot_pars(emc)
 ```
   
-We find excellent convergence properties. Note that learning rates are by default sampled on the probit scale, so if we want to know the mean learning rate, we need to map and transform the parameters first:
+We find excellent convergence properties, especially given learning rate parameter are often hard to estimate. Note that learning rates are by default sampled on the probit scale, so if we want to know the mean learning rate, we need to map and transform the parameters first (this can take a while to run):
 
 ```{r SM_check_pars}
 credint(emc, map=TRUE)
@@ -492,7 +496,7 @@ Hence, we find a group-wise mean learning rate of \~0.38, and the threshold of t
 We can now check whether the SM mechanism can explain stimulus-history effects by plotting the RTs (by choice) and the probability of choosing left as a function of the previous three presented stimuli. First, generate posterior predictives:
   
 ```{r SM_pp, eval=FALSE}
-pp <- predict(emc, n_cores=10, 
+pp <- predict(emc, n_cores=9, 
               # for plotting purposes below, this argument is added:
               return_trialwise_parameters=TRUE)
 save(pp, file='./ds1_SMB_pps.RData')
@@ -503,9 +507,9 @@ load('./ds1_SMB_pps.RData')
 plot_history_effects(dat, pp, n_hist=3)
 ```
   
-The left panel of this plot shows the mean RT as a function of the three previous trials' stimuli (ooo = odd, odd, odd; ooe = odd, odd, even; etc. The right-most letter in the string indicates the most recent trial). The RT data show a cross-over pattern, such that if the previous three stimuli were odd, 'odd' responses are faster than 'even' responses; and vice versa. The model tends to capture this cross-over pattern fairly well, with some misfits mostly due to an apparent asymmetry in the cross-over in the data.
+The left panel of this plot shows the mean RT as a function of the three previous trials' stimuli (e.g., ooo = odd, odd, odd; ooe = odd, odd, even; etc, where the right-most letter in the string indicates the most recent trial). The RT data show a cross-over pattern, such that if the previous three stimuli were odd, 'odd' responses are faster than 'even' responses; and vice versa. The model tends to capture this cross-over pattern fairly well, with some misfits mostly due to an apparent asymmetry in the cross-over in the data.
 
-The right panel shows the probability of choosing even (black) and the probability of the stimulus being even (red) as a function of local trial history. The black crosses demonstrates that participants are more likely (\~.55) to choose 'even' if the previous three trials were 'even'. The red circles are important as a quality check. If the stimuli are generated truly randomly, the red circles should be approximately at 0.5 in all cases. However, some experiments use pseudorandomization, which can lead to negative correlations in local stimulus histories. This can confound any stimulus history effects present in the human data. True stimulus history effects are those that are larger than the ones present in the data, e.g., visible as black crosses deviating stronger from 0.5 compared to red circles.
+The right panel shows the probability of choosing even (black) and the probability of the stimulus being even (red) as a function of local trial history. The black crosses demonstrates that participants are more likely (\~.55) to choose 'even' if the previous three trials were 'even'. The red circles are important as a quality check. If the stimuli are generated truly randomly, the red circles should be approximately at 0.5 in all cases. However, some experiments use pseudorandomization, which can lead to negative correlations in local stimulus histories. This can confound any stimulus history effects present in the human data. True stimulus history effects are those that are larger than the ones present in the data, e.g., visible as black crosses deviating more from 0.5 compared to red circles.
 
 \begin{tcolorbox}[title=Advanced note: at='lR']
 Under the hood, EMC2 works with data-augmented design matrices (\texttt{dadm}s). A \texttt{dadm} contains one row per accumulator per trial -- so for race models applied to two-alternative forced choice tasks, this will typically result in two rows per trial. We can inspect the \texttt{dadm} for the first subject in the emc object to see that the covariate \texttt{Stim1} is indeed the same across accumulators in each trial:
@@ -519,7 +523,7 @@ head(emc[[1]]$data[[1]])
 The delta rule is applied to the covariate as it is specified in the \texttt{dadm}. Since, in the examples in this tutorial, the covariate is the same for both accumulators,  applying a delta rule to the covariate in the \texttt{dadm} would lead to \emph{two} updates every trial: One for the first accumulator, and then another one for the second accumulator. The Q-values would then also differ between accumulators. The correct behavior is to update only once every trial (i.e., for the first accumulator), and then feed forward the updated Q-value to every second (and third, fourth, ...) accumulator. By setting `at='lR'`, the Q-value is only updated at the first level of the factor in `lR`, and the resulting Q-value is carried over to the other levels of `lR`.
 <!-- This can be done by setting the covariate for every second, third, fourth, etc accumulator to NA, since NA-values are ignored when updating. \texttt{filter\_lR=TRUE} does this: it creates a new column \texttt{covariate\_lRfiltered}, and applies the delta rule to that column, feeding forward updated Q-values when encountering an NA-value. -->
 
-In many applications when using dynamic EAMs, this is likely the intended behavior. However, there are two exceptions: 1) The DDM only has one accumulator per trial, so no filtering has to be done (or can be done); and 2) when using RL-EAMs, applied to instrumental learning tasks, the covariate can differ between the two accumulators (feedback can be given to one specific option, for example). In such cases, more advanced handling of the covariate is required.
+In many applications when using dynamic EAMs, this is likely the intended behavior, and therefore `lR` is the default setting for `at`. The DDM marks an exception, since it assumes one accumulator per trial, so has no `lR` factor, as we demonstrate below. Additionally, advanced use cases might need to set `at=NULL`.
 \end{tcolorbox}
 
 
@@ -529,15 +533,15 @@ As before, we can plot the trial-wise parameters with `plot_trend()`. Let's zoom
 par(mfcol=c(2,3))
 for(subject in 1:3) {
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
-             par_name='B', subject=subject, filter= function(data) data$lR == 'odd', main=paste0(subject, ' odd'),
-             xlim=c(1,20))
+             par_name='B', subject=subject, filter= function(data) data$lR == 'odd', 
+             main=paste0(subject, ' odd'),xlim=c(1,20))
   plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
-             par_name='B', subject=subject, filter= function(data) data$lR == 'even', main=paste0(subject, ' even'),
-             xlim=c(1,20))
+             par_name='B', subject=subject, filter= function(data) data$lR == 'even', 
+             main=paste0(subject, ' even'),xlim=c(1,20))
 }
 ```
 
-Alternatively, we can plot the evolution of the Q-values themselves. Note that `predict()` was run with another argument: `return_covariates`, which returns the updated covariates as an attribute. We can use this as follows:
+Alternatively, we can plot the evolution of the Q-values themselves. Note that `predict()` was run with another argument: `return_trialwise_parameters`, which returns the updated covariates as an attribute. We can use this as follows:
     
 ```{r trialwise_Qvalues_SM}
 par(mfcol=c(1,3))
@@ -617,7 +621,7 @@ Which generates the expected pattern: if the previous trials were repeats, the m
   
 ```{r RM_fit, eval=FALSE}
 emc <- make_emc(dat, design=design_RDM_RM)
-emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
            fileName='./samples/ds1_RMB.RData')
 pp <- predict(emc, n_cores=10)
 save(pp, file='./samples/ds1_RMB_pps.RData')
@@ -705,7 +709,7 @@ design_DDM <- design(model=DDM,
 # since v is estimated on the natural scale (in case of the DDM),
 # we do not need to change the transformations, and we can use the default priors.
 emc <- make_emc(dat, design=design_DDM)
-emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
            fileName='./samples/ds1_SMv_DDM.RData')
 ```
 
@@ -749,22 +753,23 @@ design_RDM_AM <- design(model=RDM,
                         formula=list(B ~ 1, v ~ lM, t0 ~ 1, s~lM),
                         trend=AM_trend,
                         constants=c('v.q0'=0, 's'=1))
-# note that 1) we allow within-trial noise s to vary with accumulator
+# NB1: we allow within-trial noise s to vary with accumulator
 # match (correct/incorrect), which will allow us to capture the
 # relative speed of errors.
 
-# note that 2) in this case, we are not estimating v on the natural scale:
+# NB2: in this case, we are not estimating v on the natural scale:
 mapped_pars(design_RDM_AM)
 # This is because the AM mechanism can push drift rates on individual trials
 # to negative values when applied on the natural scale.
-# Since the RDM has no known analytic likelihood for negative drift rates,
+# Since the RDM has no known analytic likelihood for negative drift rates these 
+# are excluded by the RDM model using its bound attribute (see RDM()$bound), but
 # this can lead to difficulties sampling. Hence, the effect of errors on
 # urgency as we implement it here, is not strictly linear -- it is linear on
 # the log-scale.
 # The cognitive interpretation remains similar.
 
 emc <- make_emc(dat, design=design_RDM_AM)
-emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
            fileName='./samples/ds1_AM.RData')
 credint(emc)
 ```
@@ -825,16 +830,16 @@ load('./samples/ds1_AMa_DDM_pps.RData')
 plot_error_effects(dat, pp_ddm)
 
 # and loses model comparisons again
-#compare(sList=list(rdm=get(load('./samples/ds1_AM.RData')),
-#                   ddm=get(load('./samples/ds1_AMa_DDM.RData'))))
+compare(sList=list(rdm=get(load('./samples/ds1_AM.RData')),
+                   ddm=get(load('./samples/ds1_AMa_DDM.RData'))))
 ```
 
 
 # Special case: Fluency memory
 
-Fluency memory is a formalization of the idea that participants adjust their behavior according to perceived difficulty. To estimate perceived difficulty, we rely on a few simplifying assumptions: participants can quantify (1) their thresholds, and (2) their response time. In race models, the ratio of threshold over response time constitutes a measure of mean speed, which can be used as a proxy for difficulty. After all, we expect processing efficiency to be lower for difficult trials than for easy trials. Formally, $Q_{FM,t+1}=Q_{FM,t}+\alpha_{FM}(b_{t}/rt_{t}-Q_{FM,t})$. 
+Fluency memory is a formalization of the idea that participants adjust their behavior according to perceived difficulty. To estimate perceived difficulty, we rely on a few simplifying assumptions: participants can quantify (1) their thresholds, and (2) their response time. In race models, the ratio of threshold over response time approximates mean speed, which can be used as a proxy for difficulty, as processing efficiency will be lower for difficult trials relative to easy trials. Formally, $Q_{FM,t+1}=Q_{FM,t}+\alpha_{FM}(b_{t}/rt_{t}-Q_{FM,t})$. 
 
-Here, we implement this using a custom kernel.
+Here, we implement this using a custom kernel. Note that when we load a custom-kernel emc object from disk we need to reinitialize C pointers (see ?fix_custom_kernel_pointers).
 
 ```{r trend_FM, eval=FALSE}
 tf <- tempfile(fileext = ".cpp")
@@ -900,7 +905,7 @@ design_FM <- design(model=RDM,
                     trend=trend_FM)
 prior_FM <- prior(design_FM, mu_mean=c('B'=2), mu_sd=c('B'=0.5))
 emc <- make_emc(dat, design=design_FM, compress=FALSE, prior_list=prior_FM)
-emc <- fit(emc, cores_per_chain=6, cores_for_chains=3,
+emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
            fileName='samples/ds1_FM.RData')
 
 load('./samples/ds1_FM.RData')
@@ -922,4 +927,4 @@ pp <- get(load('./samples/ds1_FM_pps.RData'))
 plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)  # mean trial duration of this task was 1.265 s, which we use to determine the periods
 ```
 
-which demonstrates that fluency can account for the fluctuations that are moderate to fast, but not the slowest fluctuations.
+The spectrum shows that fluency can account for the much of the power in fluctuations that are moderate to fast, but not the slowest fluctuations. Note that we supplied the mean trial duration to determine the periods, which are then plotted on the x axis. If this is not supplied the x axis is instead log(frequency). 
