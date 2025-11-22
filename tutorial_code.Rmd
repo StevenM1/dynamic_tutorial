@@ -134,6 +134,8 @@ p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
 # Visualize trend
 plot_trend(p_vector, emc=emc,
            par_name='B', subject=1,
+           # filter here is a function that selects only the rows in the dadm
+           # corresponding to the 'odd' accumulator
            filter = function(data) data$lR == "odd",
            main='Threshold for odd')
 ```
