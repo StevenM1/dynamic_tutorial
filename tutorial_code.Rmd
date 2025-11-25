@@ -47,11 +47,15 @@ library(Hmisc)
 set.seed(1) # for reproducibility
 
 # This is some code that contains plotting functions used later on in this tutorial
-code_url = 'https://raw.githubusercontent.com/StevenM1/dynamic_tutorial/refs/heads/main/plotting_utils.R'
+code_url <- paste0(
+  "https://raw.githubusercontent.com/StevenM1/",
+  "dynamic_tutorial/refs/heads/main/plotting_utils.R")
 source(code_url)
 
 # Load in the data
-data_url <- 'https://github.com/StevenM1/dynamic_tutorial/raw/refs/heads/main/datasets/dataset_1.RData'
+data_url <- paste0(
+  "https://github.com/StevenM1/dynamic_tutorial/",
+  "raw/refs/heads/main/datasets/dataset_1.RData")
 load(url(data_url))
 
 # Inspect the data
@@ -230,6 +234,31 @@ plot_trend(p_vector, emc=emc3,
            par_name='B', subject=1,
            filter=function(data) data$lR == 'odd', main='C. Threshold for odd')
 dev.off()
+```
+
+```{r verbatim_mapping, include=FALSE eval=FALSE}
+emc1 <- make_emc(dat, design=design_RDM_lin_B)
+emc2 <- make_emc(dat, design=design_RDM_lin_B2)
+emc3 <- make_emc(dat, design=design_RDM_lin_B3)
+
+p_vector <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1)
+df <- data.frame(matrix(rep(p_vector, each = 10), nrow=10, byrow=FALSE))
+colnames(df) <- names(p_vector)
+df$trials <- 1:5
+df$B <- df$B+df$trials/1024*df$B.w
+df <- df[,c('trials', names(p_vector))]
+head(df, 3) # print 3 trials - premap = 3 rows
+
+## call underlying code for mapping example
+dadm <- emc1[[1]]$data[[1]]
+model <- emc1[[1]]$model()
+pars_mapped <- EMC2:::map_p(EMC2:::add_constants(p_vector, attr(dadm, "constants")), dadm, model)
+pars_mapped_cp <- as.data.frame(as.matrix(pars_mapped))
+head(cbind(dadm[,c('trials', 'lR', 'lM')], pars_mapped_cp[,c('v', 'B', 'A', 't0')]))
+
+pars_transformed <- EMC2:::do_transform(pars_mapped, model$transform)
+head(cbind(dadm[,c('trials', 'lR', 'lM')], pars_transformed[,c('v', 'B', 'A', 't0')]))
+
 ```
 
 This leads to the expected linear effect. As a cautionary note, keep in mind that the default priors in *EMC2* are Gaussian distributions centered on 0 with unit variance. Since many cognitive model parameters cannot be negative (and by default *EMC2* will still enforce that, see help for the bound argument in `?design)`, a N(0,1) prior is poorly chosen for those parameters that do not have support on the real line. For estimation and sampling, this usually has little influence in practice, but it may be important when estimating Bayes Factors.
@@ -696,6 +725,10 @@ save(pp, file='./ds1_SMB_pps.RData')
 
 ```{r SM_pp_check, eval=TRUE}
 load('./ds1_SMB_pps.RData')
+
+# this is a convience function that is not part of EMC2. For help, inspect the 
+# first lines after calling plot_history_effects (omitting the parentheses),
+# which document its use
 plot_history_effects(dat, pp, n_hist=3)
 ```
 
@@ -788,7 +821,7 @@ dev.off()
 
 ## Repetition/alternation memory
 
-The stimulus-memory mechanism accounts for what Jones et al. (2014) termed *first-degree* recency effects: They depend on stimulus identity (e.g., 'odd' or 'even'). There are also *second-degree* recency effects, which depend on sequential properties - i.e., whether stimuli are repetitions or alternations of those stimuli before. It is easy to implement such a mechanism with a delta rule as well. If we code the stimuli as $S_t \in {-1, 1}$, then the multiplication $S_{t-1}S_{t}$ indicates if trial $t$ repeats (outcome 1) or alternates (outcome -1) trial $t-1$. Let's hypothesize that participants keep track of the repetition rate using a repetition memory (RM). That could make use of the delta rule:
+The stimulus-memory mechanism accounts for what [@jonesSequentialEffectsResponse2013] termed *first-degree* recency effects: They depend on stimulus identity (e.g., 'odd' or 'even'). There are also *second-degree* recency effects, which depend on sequential properties - i.e., whether stimuli are repetitions or alternations of those stimuli before. It is easy to implement such a mechanism with a delta rule as well. If we code the stimuli as $S_t \in {-1, 1}$, then the multiplication $S_{t-1}S_{t}$ indicates if trial $t$ repeats (outcome 1) or alternates (outcome -1) trial $t-1$. Let's hypothesize that participants keep track of the repetition rate using a repetition memory (RM). That could make use of the delta rule:
 
 $$ Q_{RM,t+1} = Q_{RM,t} + \alpha_{RM} \cdot (S_{t-1}S_{t} - Q_{RM,t}), \quad S \in \{-1, 1\} $$
 
@@ -890,8 +923,7 @@ SM_RM_trend <- make_trend(cov_names=c('Stim1', 'Stim2'),
                           kernels = c('delta', 'delta'),
                           par_names=c('B_lRd', 'B_lR2d'),
                           bases=c('lin', 'lin'),
-                          phase = "premap",
-                          at = "lR")
+                          phase = "premap")
 
 design_RDM_RM <- design(model=RDM,
                         data=dat,
@@ -994,8 +1026,7 @@ AM_trend <- make_trend(cov_names='error',
                        kernels = 'delta',
                        par_names='v',
                        bases='lin',
-                       phase = "premap",
-                       at = "lR")
+                       phase = "premap")
 design_RDM_AM <- design(model=RDM,
                         data=dat,
                         contrast=list(lM=ADmat, lR=ADmat),
@@ -1042,6 +1073,9 @@ load('./samples/ds1_AM_pps.RData')
 ```
 
 ```{r AM_pp_check}
+# this is a convience function that is not part of EMC2. For help, inspect the 
+# first lines after calling plot_error_effects (omitting the parentheses),
+# which document its use
 plot_error_effects(dat, pp)
 ```
 
@@ -1086,6 +1120,14 @@ plot_error_effects(dat, pp_ddm)
 # and loses model comparisons again
 compare(sList=list(rdm=get(load('./samples/ds1_AM.RData')),
                    ddm=get(load('./samples/ds1_AMa_DDM.RData'))))
+```
+
+```{r make_figures_for_paper_AM, eval=FALSE, include=FALSE}
+pdf(file='./figures_paper/am_rdm_vs_ddm.pdf', width=7, height=3.5)
+par(mfrow=c(1,2), mar=c(4,4,2,1))
+plot_error_effects(dat, pp, n_cores=10, main='A')
+plot_error_effects(dat, pp_ddm, n_cores=10, main='B')
+dev.off()
 ```
 
 
@@ -1144,8 +1186,7 @@ trend_FM=make_trend(par_names='B',
                     kernels='custom',
                     par_input=list(c('B', 'B.w')),
                     bases = NULL,         # uses ct$base (here: lin)
-                    custom_trend = ct,
-                    at='lR')
+                    custom_trend = ct)
 
 ADmat <- matrix(c(-.5,.5), ncol=1, dimnames=list(NULL,'d'))
 dat <- EMC2:::add_trials(dat)
@@ -1192,3 +1233,10 @@ plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)
 ```
 
 The spectrum shows that fluency can account for the much of the power in fluctuations that are moderate to fast, but not the slowest fluctuations. Note that we supplied the mean trial duration to determine the periods, which are then plotted on the x axis. If this is not supplied the x axis is instead log(frequency). 
+
+```{r make_figures_for_paper_FM, eval=FALSE, include=FALSE}
+pdf(file='./figures_paper/spectrum.pdf', width=5, height=4)
+par(mar=c(4,4,2,.5))
+plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)
+dev.off()
+```
