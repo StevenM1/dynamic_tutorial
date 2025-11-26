@@ -236,7 +236,7 @@ plot_trend(p_vector, emc=emc3,
 dev.off()
 ```
 
-```{r verbatim_mapping, include=FALSE eval=FALSE}
+```{r verbatim_mapping, include=FALSE, eval=FALSE}
 emc1 <- make_emc(dat, design=design_RDM_lin_B)
 emc2 <- make_emc(dat, design=design_RDM_lin_B2)
 emc3 <- make_emc(dat, design=design_RDM_lin_B3)
@@ -454,56 +454,56 @@ plot_trend(p_vector3, emc=emc_incr, par_name='v',
 ```
 
 ```{r make_figures_for_paper_4, include=FALSE, eval=FALSE}
-emc_incr <- make_emc(dat, design_exp_incr)
-emc_decr <- make_emc(dat, design_exp_decr)
-
-trend_exp_incr <- make_trend(par_names='v_lMd', cov_names = 'trials2',
-                             kernels = 'exp_incr', bases = 'lin')
-design_exp_incr2 <- design(model=RDM,
-                          data=dat,
-                          contrast=list(lM=ADmat),
-                          covariates='trials2',
-                          matchfun=function(d) d$S==d$lR,
-                          transform=list(func=c('v'='identity',
-                                                'v_lMd.w'='exp')),
-                          formula=list(B ~ 1, v ~ lM, t0 ~ 1),
-                          trend=trend_exp_incr)
-
-emc_incr2 <- make_emc(dat, design_exp_incr2)
-p_vector1 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=-1, 'v_lMd.d_ei'=2)
-p_vector2 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=0, 'v_lMd.d_ei'=2)
-p_vector3 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=1, 'v_lMd.d_ei'=2)
-
-p_vector_incr <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1, 'B.d_ei'=2)
-p_vector_decr <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1, 'B.d_ed'=2)
-
-pdf(file='./figures_paper/exponentials.pdf', width=7, height=4)
-par(mfcol=c(2,4))
-plot_trend(p_vector_incr, emc=emc_incr,
-           par_name='B', subject=1, filter = function(data) data$lR == 'odd', main='B odd')
-plot_trend(p_vector_decr, emc=emc_decr,
-           par_name='B', subject=1, filter = function(data) data$lR == 'odd', main='B odd')
-
-
-plot_trend(p_vector1, emc=emc_incr2, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, 
-           main='v matching', ylim=c(3.5,5))
-plot_trend(p_vector1, emc=emc_incr2, par_name='v',
-           subject=1, filter = function(data) data$lM == FALSE, 
-           main='v mismatching', ylim=c(1, 2.5))
-plot_trend(p_vector2, emc=emc_incr2, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, 
-           main='v matching', ylim=c(3.5,5))
-plot_trend(p_vector2, emc=emc_incr2, par_name='v',
-           subject=1, filter = function(data) data$lM == FALSE, 
-           main='v mismatching', ylim=c(1, 2.5))
-plot_trend(p_vector3, emc=emc_incr2, par_name='v',
-           subject=1, filter = function(data) data$lM == TRUE, 
-           main='v matching', ylim=c(3.5,5))
-plot_trend(p_vector3, emc=emc_incr2, par_name='v',
-           subject=1, filter = function(data) data$lM == FALSE, 
-           main='v mismatching', ylim=c(1, 2.5))
-dev.off()
+# emc_incr <- make_emc(dat, design_exp_incr)
+# emc_decr <- make_emc(dat, design_exp_decr)
+# 
+# trend_exp_incr <- make_trend(par_names='v_lMd', cov_names = 'trials2',
+#                              kernels = 'exp_incr', bases = 'lin')
+# design_exp_incr2 <- design(model=RDM,
+#                           data=dat,
+#                           contrast=list(lM=ADmat),
+#                           covariates='trials2',
+#                           matchfun=function(d) d$S==d$lR,
+#                           transform=list(func=c('v'='identity',
+#                                                 'v_lMd.w'='exp')),
+#                           formula=list(B ~ 1, v ~ lM, t0 ~ 1),
+#                           trend=trend_exp_incr)
+# 
+# emc_incr2 <- make_emc(dat, design_exp_incr2)
+# p_vector1 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=-1, 'v_lMd.d_ei'=2)
+# p_vector2 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=0, 'v_lMd.d_ei'=2)
+# p_vector3 <- c('B'=1, 'v'=3, 'v_lMd'=1, 't0'=0.1, 'v_lMd.w'=1, 'v_lMd.d_ei'=2)
+# 
+# p_vector_incr <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1, 'B.d_ei'=2)
+# p_vector_decr <- c('B'=1, 'v'=1, 'v_lMd'=1, 't0'=0.1, 'B.w'=1, 'B.d_ed'=2)
+# 
+# pdf(file='./figures_paper/exponentials.pdf', width=7, height=4)
+# par(mfcol=c(2,4))
+# plot_trend(p_vector_incr, emc=emc_incr,
+#            par_name='B', subject=1, filter = function(data) data$lR == 'odd', main='B odd')
+# plot_trend(p_vector_decr, emc=emc_decr,
+#            par_name='B', subject=1, filter = function(data) data$lR == 'odd', main='B odd')
+# 
+# 
+# plot_trend(p_vector1, emc=emc_incr2, par_name='v',
+#            subject=1, filter = function(data) data$lM == TRUE, 
+#            main='v matching', ylim=c(3.5,5))
+# plot_trend(p_vector1, emc=emc_incr2, par_name='v',
+#            subject=1, filter = function(data) data$lM == FALSE, 
+#            main='v mismatching', ylim=c(1, 2.5))
+# plot_trend(p_vector2, emc=emc_incr2, par_name='v',
+#            subject=1, filter = function(data) data$lM == TRUE, 
+#            main='v matching', ylim=c(3.5,5))
+# plot_trend(p_vector2, emc=emc_incr2, par_name='v',
+#            subject=1, filter = function(data) data$lM == FALSE, 
+#            main='v mismatching', ylim=c(1, 2.5))
+# plot_trend(p_vector3, emc=emc_incr2, par_name='v',
+#            subject=1, filter = function(data) data$lM == TRUE, 
+#            main='v matching', ylim=c(3.5,5))
+# plot_trend(p_vector3, emc=emc_incr2, par_name='v',
+#            subject=1, filter = function(data) data$lM == FALSE, 
+#            main='v mismatching', ylim=c(1, 2.5))
+# dev.off()
 ```
 
 \begin{tcolorbox}
