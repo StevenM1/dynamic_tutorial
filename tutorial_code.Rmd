@@ -40,7 +40,7 @@ First, let's load the required packages and data (note that you will also need t
 ```{r load-data}
 rm(list = ls())
 # TMP -- install the right branch
-# remotes::install_github("ampl-psych/EMC2@trendy_customkernel_fix",dependencies=TRUE, Ncpus=8);.rs.restartR()
+# remotes::install_github("ampl-psych/EMC2",dependencies=TRUE, Ncpus=8);.rs.restartR()
 # END TMP
 library(EMC2)
 library(Hmisc)
@@ -265,7 +265,7 @@ This leads to the expected linear effect. As a cautionary note, keep in mind tha
 
 With all that in mind, we can now start sampling our first model. We set a N(2,0.5) prior on the threshold B to reduce the prior density on negative thresholds. This is a somewhat subjective choice based on earlier experience, so it reflects our (but perhaps not your) prior belief. The rest of the priors are left to their default N(0,1) -- on the scale on which they are sampled -- except B.w, where we set a tight N(0,0.1) prior.
 
-```{r linear_trend_fit_prep, eval=TRUE}
+```{r linear_trend_fit_prep}
 prior_linB <- prior(design_RDM_lin_B3, 
                     mu_mean=c(B=2, B.w=0), mu_sd=c(B=0.5,B.w=0.1))
 emc <- make_emc(dat, design=design_RDM_lin_B3, prior_list = prior_linB)
@@ -308,7 +308,7 @@ emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
                 fileName='./samples/ds1_linB.RData')
 ```
 
-```{r linear_trend_fit_load, eval=TRUE, include=FALSE}
+```{r linear_trend_fit_load, include=FALSE}
 emc <- get(load('./samples/ds1_linB.RData'))
 ```
 
@@ -687,7 +687,7 @@ design_RDM_SM <- design(model=RDM,
   
 We can now apply a similar prior to B as above, and fit the model. Note that data compression is turned off automatically, since the delta rule needs to be applied to the covariate on each trial individually.
   
-```{r SM_fit_prep, eval=TRUE}
+```{r SM_fit_prep}
 prior_SMB <- prior(design_RDM_SM, mu_mean=c(B=2), mu_sd=c(B=0.5))
 emc <- make_emc(dat, design=design_RDM_SM, prior_list = prior_SMB)
 ```
@@ -697,7 +697,7 @@ emc <- fit(emc, cores_per_chain=3, cores_for_chains=3,
            fileName='./samples/ds1_SMB.RData')
 ```
 
-```{r SM_fit_load, eval=TRUE, include=FALSE}
+```{r SM_fit_load, include=FALSE}
 emc <- get(load('./samples/ds1_SMB.RData'))
 ```
 
@@ -723,7 +723,7 @@ pp <- predict(emc, n_cores=9,
 save(pp, file='./ds1_SMB_pps.RData')
 ```
 
-```{r SM_pp_check, eval=TRUE}
+```{r SM_pp_check}
 load('./ds1_SMB_pps.RData')
 
 # this is a convience function that is not part of EMC2. For help, inspect the 
@@ -800,7 +800,7 @@ for(subject in 1:3) {
              par_name='B', subject=subject, 
              filter= function(data) data$lR == 'even', 
              main=paste0(subject, ' even'), xlim=c(1,20))
-    plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
+  plot_trend(attr(pp, 'trialwise_parameters'), emc=emc,
              par_name='B_lRd_Stim1', subject=subject,
              main=subject,
              xlim=c(1,20))
@@ -1058,17 +1058,15 @@ credint(emc)
 ```
 
 Accuracy memory can explain error-related effects such as post-error slowing. To visualize, we can generate posterior predictives and then use a convenience function to plot mean RT as a function of trial number relative to an error. As mentioned above, since the covariate in this case depends on observed behavior, we need to simulate data and determine the covariate one trial at a time. *EMC2* detects whether the covariate is `rt`, `R`, or the output of one of the functions provided to design. If it is, it automatically simulates data trial-by-trial. Because vectorisation is not possible in this case, this way of simulating data is much slower.
-## NOTE TO SELF -- DOUBLE CHECK IF AUTOMATED DETECTION STILL WORKS AS STATED HERE!!! ##
-## ANDREW it worked for me here! ##
 
 ```{r AM_pp_gen, eval=FALSE}
 emc <- get(load('./samples/ds1_AM.RData'))
 
-pp <- predict(emc, n_cores=40, conditional_on_data=FALSE)
+pp <- predict(emc, n_cores=40)
 save(pp, file='./samples/ds1_AM_pps.RData')
 ```
 
-```{r AM_pp_load, eval=TRUE, include=FALSE}
+```{r AM_pp_load, include=FALSE}
 load('./samples/ds1_AM_pps.RData')
 ```
 
@@ -1110,7 +1108,7 @@ pp_ddm <- predict(emc, n_cores=40, conditional_on_data=FALSE)
 save(pp_ddm, file='./samples/ds1_AMa_DDM_pps.RData')
 ```
 
-```{r ddm_AM_pp_load, eval=TRUE, include=FALSE}
+```{r ddm_AM_pp_load, include=FALSE}
 load('./samples/ds1_AMa_DDM_pps.RData')
 ```
 
@@ -1221,7 +1219,7 @@ save(pp, file='./samples/ds1_FM_pps.RData')
 
 Fluency memory provides an explanation for the slower fluctuations in the observed response times. One useful way to visualize these is by creating a power spectrum of the RT data. We provide a convenience function that does this for the data and the posterior predictives of the estimated model:
 
-```{r trend_FM_check_fit_load, eval=TRUE, include=FALSE}
+```{r trend_FM_check_fit_load, include=FALSE}
 pp <- get(load('./samples/ds1_FM_pps.RData'))
 ```
 
