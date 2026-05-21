@@ -60,6 +60,8 @@ print_par <- function(layout = "1panel") {
 
 In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods. We will utilize the *EMC2* package, assuming some prior knowledge of its functionalities (for reference, see the *EMC2* tutorial [@stevensonEMC2PackageCognitive2024]). Specifically, we will fit models to dataset 1 from [@mileticExplainingMultiScaleChoice2025], which corresponds to the 'choice, short [CS]' condition from [@Wagenmakers2004a]. In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
 
+To enhance readability, the code chunks below only includes the arguments strictly required to run the code. In the Rmd-file that generates this document, we include (hidden) chunks that provide additional arguments for multi-core processing to speed up sampling and posterior predictive generation, code for automatically saving and loading samples, and decorations that improve the visibility of the plots in this pdf-based output. The document can be found on [INCLUDE LINK]. An html-output of this document can also be found [INCLUDE LINK], which facilitates copy and pasting.
+
 First, let's load the required packages and data:
 
 ```{r load-data}
@@ -287,76 +289,87 @@ There is an important caveat here. By default, *EMC2* estimates some parameters 
 ```{=latex}
 \begin{figure}[h!]
 \centering
+\adjustbox{max width=\textwidth}{%
 \begin{tikzpicture}[
     node distance=1.0cm,
-    box/.style={rectangle, draw, rounded corners, text width=2.5cm, minimum height=1cm, align=center},
-    vblock/.style={anchor=north, align=center}
+    box/.style={rectangle, draw, rounded corners, minimum height=1cm, align=center},
+    vblock/.style={anchor=north, align=center, draw, rounded corners, inner sep=4pt}
 ]
 
-\node[box, text width=2.25cm] (pvec) {Estimated\\p\_vector};
-\node[box, text width=2.25cm, right=0.5cm of pvec] (premap) {Premap};
-\node[box, text width=2.65cm, right=0.5cm of premap] (pretrans) {Pretransform};
-\node[box, text width=3.0cm, right=0.75cm of pretrans] (posttrans) {Posttransform};
+\node[box, text width=2.0cm] (pvec) {Estimated\\p\_vector};
+\node[box, text width=2.8cm, right=0.5cm of pvec] (premap) {Premap};
+\node[box, text width=3.8cm, right=0.5cm of premap] (pretrans) {Pretransform};
+\node[box, text width=3.8cm, right=0.5cm of pretrans] (posttrans) {Posttransform};
 
-% arrows
+% arrows between top boxes
 \draw[->] (pvec) -- (premap);
 \draw[->] (premap) -- (pretrans);
 \draw[->] (pretrans) -- (posttrans);
 
-% verbatim-ish tables underneath
-\node[vblock, text width=2.25cm, below=0.25cm of pvec] (pvec_tab) {
-\begin{lstlisting}[basicstyle=\footnotesize\ttfamily]
-  B = 1.0 
-  v = 1.0
-  v_lMd = 1.0 
-  B.w = 1.0
-\end{lstlisting}
+% tables underneath
+\node[vblock, below=0.25cm of pvec] (pvec_tab) {%
+  \setlength{\tabcolsep}{2pt}%
+  \ttfamily\footnotesize
+  \begin{tabular}{ll}
+  B      & = 1.0 \\
+  v      & = 1.0 \\
+  v\_lMd  & = 1.0 \\
+  B.w    & = 1.0 \\
+  \end{tabular}
 };
 
-\node[vblock, text width=2.25cm, below=0.25cm of premap] (premap_tab) {
-\begin{lstlisting}[basicstyle=\footnotesize\ttfamily]
-t      B v v_lMd
-1 1.0010 1     1
-2 1.0020 1     1
-3 1.0029 1     1
-\end{lstlisting}
+\node[vblock, below=0.25cm of premap] (premap_tab) {%
+  \setlength{\tabcolsep}{2pt}%
+  \ttfamily\footnotesize
+  \begin{tabular}{rrrr}
+  t & B      & v & v\_lMd \\
+  1 & 1.0010 & 1 & 1 \\
+  2 & 1.0020 & 1 & 1 \\
+  3 & 1.0029 & 1 & 1 \\
+  \end{tabular}
 };
 
-\node[vblock, text width=2.65cm, below=0.25cm of pretrans] (pretrans_tab) {
-\begin{lstlisting}[basicstyle=\footnotesize\ttfamily]
-t   lR lM   v      B
-1 even  T 1.5 1.0010
-1  odd  F 0.5 1.0010
-2 even  T 1.5 1.0020
-2  odd  F 0.5 1.0020
-3 even  T 1.5 1.0029
-3  odd  F 0.5 1.0029
-\end{lstlisting}
+\node[vblock, below=0.25cm of pretrans] (pretrans_tab) {%
+  \setlength{\tabcolsep}{2pt}%
+  \ttfamily\footnotesize
+  \begin{tabular}{rrrrr}
+  t & lR   & lM & v   & B      \\
+  1 & even & T  & 1.5 & 1.0010 \\
+  1 & odd  & F  & 0.5 & 1.0010 \\
+  2 & even & T  & 1.5 & 1.0020 \\
+  2 & odd  & F  & 0.5 & 1.0020 \\
+  3 & even & T  & 1.5 & 1.0029 \\
+  3 & odd  & F  & 0.5 & 1.0029 \\
+  \end{tabular}
 };
 
-\node[vblock, text width=3cm, below=0.25cm of posttrans] (posttrans_tab) {
-\begin{lstlisting}[basicstyle=\footnotesize\ttfamily]
-t   lR lM      v      B
-1 even  T 4.4817 2.7209
-1  odd  F 1.6487 2.7209
-2 even  T 4.4817 2.7236
-2  odd  F 1.6487 2.7236
-3 even  T 4.4817 2.7263
-3  odd  F 1.6487 2.7263
-\end{lstlisting}
+\node[vblock, below=0.25cm of posttrans] (posttrans_tab) {%
+  \setlength{\tabcolsep}{2pt}%
+  \ttfamily\footnotesize
+  \begin{tabular}{rrrrr}
+  t & lR   & lM & v      & B      \\
+  1 & even & T  & 4.4817 & 2.7209 \\
+  1 & odd  & F  & 1.6487 & 2.7209 \\
+  2 & even & T  & 4.4817 & 2.7236 \\
+  2 & odd  & F  & 1.6487 & 2.7236 \\
+  3 & even & T  & 4.4817 & 2.7263 \\
+  3 & odd  & F  & 1.6487 & 2.7263 \\
+  \end{tabular}
 };
 
-% more arrows
-\draw[->] (pvec_tab) -- (premap_tab);
-\draw[->] (premap_tab.east) -- (premap_tab.east -| pretrans_tab.west);
-\draw[->] (pretrans_tab) -- (posttrans_tab);
+% arrows between table nodes
+\draw[->] (pvec_tab.east) -- (premap_tab.west);
+\draw[->] (premap_tab.east) -- (pretrans_tab.west);
+\draw[->] (pretrans_tab.east) -- (posttrans_tab.west);
 
-
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Illustration of parameter mapping and transformation in \texttt{EMC2}. The estimated parameter vector is first mapped, then transformed. In the illustration, only drift rates \texttt{v} and thresholds \texttt{B} are shown. In this example, the trend is applied \texttt{premap}, which leads the threshold to increase with trials (\texttt{t}). After mapping, the parameters are expanded to each design cell, with in this example two accumulators per trial (one for each latent response \texttt{lR}, and one matches the stimulus \texttt{lM=T}). Finally, the parameters are transformed to the natural scale. Since in this example, a linear trend is applied \texttt{premap}, this leads to an exponentially increasing trend \texttt{posttransform}.}
 \label{fig_mapping}
 \end{figure}
 ```
+
+
 
 Let's clarify with an example by trying to impose a linear trend on thresholds in case of the RDM:
 
@@ -1553,7 +1566,8 @@ pp <- predict(emc)
 # which document its use
 plot_error_effects(dat, pp)
 ```
-```{r AM_pp_gen_RUN, echo=FALSE, fig.height=3.5, fig.width=4} 
+```{r AM_pp_gen_RUN, echo=FALSE, fig.height=3.5, fig.width=4, fig.cap=cap} 
+cap <- "Quality of fit of error-related effects by an RDM that allows urgency to vary with accuracy memory. x-axes depict trial number relative to the error (trial 0); crosses are (group-averaged) mean RTs, error bars are 95\\% credible intervals of the models. Horizontal dashed lines indicate the mean RT."
 pp <- predict(emc, n_cores=30)
 print_par('1x1')
 plot_error_effects(dat, pp)
@@ -1568,36 +1582,38 @@ trend_AM_DDM <- make_trend(cov_names='error',
                            bases='lin',
                            phase='posttransform',
                            at=NULL)
-Smat <- matrix(c(-1,1), nrow=2,dimnames=list(NULL,'dif'))
+Smat <- matrix(c(-1,1), nrow=2, dimnames=list(NULL,'dif'))
 DDM_AM <- design(model=DDM,
                  data=dat,
                  functions=list(error=function(x) x$S!=x$R),
                  contrasts=list(S=Smat),
                  formula=list(v ~ S, a ~ 1, t0 ~ 1),
-                 constants=c('a.q0'=0),
+                 constants=c(a.q0=0),
                  trend=trend_AM_DDM,
                  report_p_vector=FALSE)
 
 emc_ddm_am <- make_emc(dat, design=DDM_AM, compress=FALSE)
 emc_ddm_am <- fit(emc_ddm_am)
 pp_ddm_am <- predict(emc_ddm_am)
-plot_history_effects(dat, pp_ddm_am)
+plot_error_effects(dat, pp_ddm_am)
 compare(list(rdm=emc, ddm=emc_ddm_am))
 ```
-```{r ddm_example_AM_RUN, echo=FALSE}
+```{r ddm_example_AM_RUN, echo=FALSE, fig.cap=cap}
+cap <- "Quality of fit of error-related effects by a WDM that allows thresholds to vary with accuracy memory. x-axes depict trial number relative to the error (trial 0); crosses are (group-averaged) mean RTs, error bars are 95\\% credible intervals of the models. Horizontal dashed lines indicate the mean RT."
+
 trend_AM_DDM <- make_trend(cov_names='error',
                            kernels='delta',
                            par_names='a',
                            bases='lin',
                            phase='posttransform',
                            at=NULL)
-Smat <- matrix(c(-1,1), nrow=2,dimnames=list(NULL,'dif'))
+Smat <- matrix(c(-1,1), nrow=2, dimnames=list(NULL,'dif'))
 DDM_AM <- design(model=DDM,
                  data=dat,
                  functions=list(error=function(x) x$S!=x$R),
                  contrasts=list(S=Smat),
                  formula=list(v ~ S, a ~ 1, t0 ~ 1),
-                 constants=c('a.q0'=0),
+                 constants=c(a.q0=0),
                  trend=trend_AM_DDM,
                  report_p_vector=FALSE)
 
@@ -1611,7 +1627,8 @@ if(file.exists(fn)) {
 }
 emc <- EMC2:::loadRData('./cache/ds1_AM.RData')
 pp_ddm_am <- predict(emc_ddm_am, n_cores=30)
-plot_history_effects(dat, pp_ddm_am)
+print_par('1x1')
+plot_error_effects(dat, pp_ddm_am)
 compare(list(rdm=emc, ddm=emc_ddm_am))
 ```
 
