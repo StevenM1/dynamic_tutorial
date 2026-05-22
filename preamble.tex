@@ -1,0 +1,44 @@
+\usepackage[most]{tcolorbox}
+\usepackage{fvextra}  % handles breaklines in Highlighting
+
+\tcbset{
+  colback=gray!10!white,
+  colframe=gray!80!black,
+  boxrule=0.5pt,
+  arc=4pt,
+  left=6pt, right=6pt, top=6pt, bottom=6pt
+}
+
+% Rewrap pandoc's Shaded environment with tcolorbox
+\renewenvironment{Shaded}{\begin{tcolorbox}}{\end{tcolorbox}}
+
+% Fix breaklines in syntax-highlighted code
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{
+  breaklines=true,
+  breaksymbolleft={},
+  fontsize=\small,
+  commandchars=\\\{\}
+}
+
+% Smaller font for console output
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{
+  fontsize=\small,
+  breaklines=true
+}
+
+% tikz
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, shapes}
+\usepackage{listings}
+\lstset{
+  language=R,
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  showstringspaces=false,
+  keepspaces=true,
+  frame=single,
+  frameround=tttt,
+  breaklines=true,
+  breakatwhitespace=true
+}
+\usepackage{adjustbox}
