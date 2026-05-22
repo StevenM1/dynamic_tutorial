@@ -2,34 +2,35 @@
 title: "Modelling structured trial-by-trial variability in evidence accumulation"
 author: "Steven Miletić, Niek Stevenson, Luke Strickland, Andrew Heathcote"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-bibliography: bibliography.bib
-link-citations: true
 output:
-  pdf_document:
-    pandoc_args: ["--from", "markdown-smart"]
-    highlight: pygments
+  bookdown::pdf_document2:
     latex_engine: xelatex
-    keep_tex: true      # outputs .tex fragment for Overleaf
+    highlight: pygments
+    keep_tex: true
     includes:
       in_header: preamble.tex
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    highlight: pygments
+link-citations: true
+bibliography: bibliography.bib
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
+library(knitr)
+opts_chunk$set(
   echo        = TRUE,
   warning     = FALSE,
   message     = FALSE,
-  comment     = "#>",        # cleaner than default ##
-  collapse    = FALSE,        # merges code + output into one block
-  results     = 'markup',
+  comment     = "#>", 
+  collapse    = FALSE,
+  results     = "markup",
   fig.path    = "figs/",
-  fig.width   = 7,         # single-column width (inches); use 7 for double-column
-  fig.height  = 4,
   fig.align   = "center",
-#  out.width   = "80%",       # scale down in the pdf; adjust per figure as needed
-  dev         = "pdf",        # vector output — essential for print quality
   cache       = TRUE, 
-  cache.path  = "cache/"
+  cache.path  = if (is_latex_output()) "cache/pdf/" else "cache/html/",
+  dev         = if (is_latex_output()) "pdf" else "svg"
 )
 
 # Utility function — call at the start of any base R plot chunk
@@ -102,7 +103,7 @@ print(head(dat))
 
 Here, `subjects` refers to subject number, `S` to the presented stimulus (even/odd), `R` the response (even/odd), and `rt` the response time in seconds.
 
-### Baseline models
+## Baseline models
 
 We begin by setting up two static baseline models — one using a racing diffusion model (RDM) and one using a Wiener diffusion model (WDM), the latter being the diffusion decision model (DDM) without between-trial variability (sometimes called the 'simple' DDM). Using these models, we demonstrate a full analysis pipeline: model specification, prior specification, fitting, convergence checking, posterior predictive (quality of fit) checks, model comparison, and a simple parameter recovery. We then show how the same pipeline applies when model specifications are extended to include time-varying parameters.
 
@@ -201,11 +202,11 @@ check(emc_rdm, mfrow=c(1,3))
 
 Posterior distributions and credible intervals can be obtained with `plot_pars()` and `credint()`, respectively. Both accept a selection argument specifying which parameters to plot — by default "mu" (group-level means), with alternatives "alpha" (subject-level), "sigma2" (group-level variance), and "correlation" (group-level correlations).
 
-```{r baseline-rdm-plot_pars-code, eval=FALSE}
+```{r baseline-rdm-plotpars-code, eval=FALSE}
 plot_pars(emc_rdm)
 ```
 
-```{r baseline-rdm-plot_pars-run, fig.height=1.8, fig.width=5, echo=FALSE, fig.cap=cap, dependson="baseline-fit-run"}
+```{r baseline-rdm-plotpars-run, fig.height=1.8, fig.width=5, echo=FALSE, fig.cap=cap, dependson="baseline-fit-run"}
 cap <- "Posterior density (black) and prior density (red) of sampled group-level mean parameters of the baseline RDM. Contraction indicates the reduction of uncertainty in the posterior versus the prior (1 minus the ratio of the posterior to prior variance)."
 print_par("1x4")
 plot_pars(emc_rdm, layout=c(1, 4))
@@ -289,11 +290,11 @@ recovery(emc_simulated_rdm, true_pars, selection="alpha", layout=c(1,4))
 
 Together, these steps illustrate the key elements of a principled modelling workflow: model specification, prior specification, fitting, convergence checking, posterior predictive checks, and parameter recovery. In the following sections, we turn to time-varying parameters. The same functions apply throughout — the main difference lies in model specification, with some additional considerations for prior specification that we highlight along the way.
 
-# Trend specification
+## Trend specification
 
 Both the descriptive trends and the formal mechanisms of dynamics work through `trend` objects in *EMC2*. In this object, you specify (1) the covariate of interest (e.g., time on task), (2) a kernel to apply to the covariate (e.g., linear, power, exponential, polynomial, or delta rule), (3) which decision parameter is informed by the resulting covariate, and (4) the functional form of the mapping between the resulting covariate and the decision parameters, referred to as the `base`. The `trend_help()` function gives an overview of the options:
 
-```{r trend_help}
+```{r trendhelp}
 trend_help()
 ```
 
@@ -386,8 +387,7 @@ There is an important caveat here. By default, *EMC2* estimates some parameters 
 \end{figure}
 ```
 
-
-
+### Linear trends
 Let's clarify with an example by trying to impose a linear trend on thresholds in case of the RDM. First, we add the trial number as a covariate to the data:
 
 ```{r load-data-trials, dependson="load-data"}
@@ -462,7 +462,7 @@ plot_trend(p_vector, emc=emc_lin,
 
 Clearly, this is not a linear increase. This happens because the threshold is sampled on the log scale, so an exponential transform is applied after mapping the parameter vector to the design cells. Since the linear trend was applied prior to mapping, this linear effect becomes non-linear. `mapped_pars()` can be used to clarify:
 
-```{r lin-mapped_pars, dependson="lin-design"}
+```{r lin-mappedpars, dependson="lin-design"}
 mapped_pars(RDM_lin_B)
 ```
 
@@ -1038,7 +1038,7 @@ plot_trend(p_vector4, emc=emc_poly, par_name="B",
 ```
 
 
-# Mechanisms of dynamics: Stimulus memory
+## Mechanisms of dynamics: Stimulus memory
 
 Models with dynamic mechanisms (as opposed to the descriptions of dynamics in the last section) often rely on delta rules. To implement delta rules, we follow the same general logic as above --- the delta rule is implemented as a kernel in `make_trend()`. To illustrate we implement the stimulus memory mechanism proposed by [@mileticExplainingMultiScaleChoice2025]. Here, the decision maker keeps track of the probability that a stimulus is even (or odd). The covariate in this case is the stimulus, which we recode as 1 (even) and -1 (odd) and use in the delta rule:
 
@@ -1215,7 +1215,7 @@ The delta rule is applied to the covariate as it is specified in the \texttt{dad
 In many applications when using dynamic EAMs, this is likely the intended behavior, and therefore `lR` is the default setting for `at`. The DDM marks an exception, since it assumes one accumulator per trial, so has no `lR` factor, as we demonstrate below. Additionally, advanced use cases might need to set `at=NULL`.
 \end{tcolorbox}
 
-## Repetition/alternation memory
+### Repetition/alternation memory
 The stimulus-memory mechanism accounts for what [@jonesSequentialEffectsResponse2013] termed *first-degree* recency effects: They depend on stimulus identity (e.g., 'odd' or 'even'). There are also *second-degree* recency effects, which depend on sequential properties - i.e., whether stimulus identities are repetitions or alternations of those stimuli before. It is easy to implement such a mechanism with a delta rule as well. If we code the stimuli as $S_t \in {-1, 1}$, then the multiplication $S_{t-1}S_{t}$ indicates if trial $t$ repeats (outcome 1) or alternates (outcome -1) trial $t-1$. Let's hypothesise that participants keep track of the repetition rate using a repetition memory (RM). That could make use of the delta rule:
 
 $$ Q_{RM,t+1} = Q_{RM,t} + \alpha_{RM} \cdot (S_{t-1}S_{t} - Q_{RM,t}), \quad S \in \{-1, 1\} $$
@@ -1334,7 +1334,7 @@ plot_history_effects(dat, pp, degree=2, nopar=TRUE)
 These results demonstrate that the second-degree recency effects in response probability are fit reasonably well, but some misfit remains in the response times.
 
 
-## Stimulus memory: DDM and drift rate effects
+### Stimulus memory: DDM and drift rate effects
 
 The examples above mimic [@mileticExplainingMultiScaleChoice2025] by using an RDM and assuming that stimulus memory causes a threshold (start point) bias. *EMC2* is flexibly designed to implement your own hypotheses. For example, we can propose a WDM instead, and hypothesise that drift rates rather than start points are biased. However, as the minimal implementation below demonstrates, this does not appear to fit as well, and loses quantitative model comparisons:
 
@@ -1401,7 +1401,7 @@ compare(sList=list(rdm=emc,
                    ddm=emc_ddm))
 ```
 
-# Mechanisms of dynamics: Accuracy memory
+## Mechanisms of dynamics: Accuracy memory
 
 Accuracy memory follows the same logic as above, with a different covariate (errors) and a different parameter (urgency, $v$). Errors are the inverse of accuracy; they are 0 when the response matches the stimulus, and 1 otherwise. Unlike the stimulus frequency, accuracy/error is not a static property of the experimental design but depends on the observed behaviour. This is important when simulating new data - the covariate in question is not the *empirically-observed* accuracy on any given trial, but the *newly-simulated* accuracy.
 
@@ -1481,7 +1481,13 @@ plot_error_effects(dat, pp)
 ```
 ```{r am-pp-run, echo=FALSE, fig.height=2.25, fig.width=2.25, fig.cap=cap, dependson="am-fit-run"} 
 cap <- "Quality of fit of error-related effects by an RDM that allows urgency to vary with accuracy memory. x-axes depict trial number relative to the error (trial 0); crosses are (group-averaged) mean RTs, error bars are 95\\% credible intervals of the models. Horizontal dashed lines indicate the mean RT."
-pp <- predict(emc, n_cores=30)
+pp_fn <- "./cache/ds1_AM_pp.RData"
+if(file.exists(pp_fn)) {
+  pp <- EMC2:::loadRData(pp_fn)
+} else {
+  pp <- predict(emc, n_cores=30)
+  save(pp, file=pp_fn)
+}
 print_par("1x1")
 plot_error_effects(dat, pp)
 ```
@@ -1537,13 +1543,20 @@ if(file.exists(fn)) {
                     fileName=fn)
 }
 emc <- EMC2:::loadRData("./cache/ds1_AM.RData")
-pp_ddm_am <- predict(emc_ddm_am, n_cores=30)
+
+pp_fn <- "./cache/ds1_AMa_DDM_pp.RData"
+if(file.exists(pp_fn)) {
+  pp_ddm_am <- EMC2:::loadRData(pp_fn)
+} else {
+  pp_ddm_am <- predict(emc, n_cores=30)
+  save(pp_ddm_am, file=pp_fn)
+}
 print_par("1x1")
 plot_error_effects(dat, pp_ddm_am)
 compare(list(rdm=emc, ddm=emc_ddm_am))
 ```
 
-# Special case: Fluency memory
+## Special case: Fluency memory
 
 Fluency memory is a formalisation of the idea that participants adjust their behaviour according to perceived difficulty. To estimate perceived difficulty, we rely on a few simplifying assumptions: participants have an implicit sense of (1) their thresholds, and (2) their response time. In race models, the ratio of threshold over response time approximates mean speed, which can be used as a proxy for difficulty, as processing efficiency will be lower for difficult trials relative to easy trials. Formally, $Q_{FM,t+1}=Q_{FM,t}+\alpha_{FM}(b_{t}/rt_{t}-Q_{FM,t})$. 
 
