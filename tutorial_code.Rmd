@@ -34,43 +34,50 @@ opts_chunk$set(
   dev         = if (is_latex_output()) "pdf" else "svg"
 )
 
+# for switching between \\texttt{} and <code> between pdf and html
+tt <- function(x) {
+  if (knitr::is_html_output()) paste0("<code>", x, "</code>")
+  else paste0("\\texttt{", x, "}")
+}
+
 # Utility function — call at the start of any base R plot chunk
 print_par <- function(layout = "1panel") {
   switch(layout,
     "1panel" = par(mar = c(3, 3, 1.5, 0.5),     mgp = c(1.8, 0.5, 0), tcl = -0.3,
-                   cex = 0.8, cex.axis = 0.8, cex.lab = 0.9, cex.main = 0.9),
+                   cex = 0.64, cex.axis = 1, cex.lab = 1.125, cex.main = 1.125),
     "1x1"    = par(mar = c(3, 3, 1.5, 0.5),     mgp = c(1.8, 0.5, 0), tcl = -0.3,
                    mfrow = c(1, 1),
-                   cex = 0.8, cex.axis = 0.8, cex.lab = 0.9, cex.main = 0.9),
+                   cex = 0.64, cex.axis = 1, cex.lab = 1.125, cex.main = 1.125),
     "1x2"    = par(mar = c(3, 3, 1.5, 0.5),     mgp = c(1.8, 0.5, 0), tcl = -0.3,
                    mfrow = c(1, 2),
-                   cex = 0.8, cex.axis = 0.8, cex.lab = 0.9, cex.main = 0.9),
+                   cex = 0.64, cex.axis = 1, cex.lab = 1.125, cex.main = 1.125),
     "1x3"    = par(mar = c(3, 3, 1.5, 0.5),     mgp = c(1.8, 0.5, 0), tcl = -0.3,
                    mfrow = c(1, 3),
-                   cex = 0.8, cex.axis = 0.8, cex.lab = 0.9, cex.main = 0.9),
+                   cex = 0.64, cex.axis = 1, cex.lab = 1.125, cex.main = 1.125),
     "1x4"    = par(mar = c(3, 2.5, 1.5, 0.5),   mgp = c(1.5, 0.4, 0), tcl = -0.25,
                    mfrow = c(1, 4),
-                   cex = 0.75, cex.axis = 0.75, cex.lab = 0.85, cex.main = 0.85),
+                   cex = 0.5625, cex.axis = 1, cex.lab = 1.133, cex.main = 1.133),
     "1x5"    = par(mar = c(2.5, 2.5, 1.2, 0.2), mgp = c(1.4, 0.4, 0), tcl = -0.25,
                    mfrow = c(1, 5),
-                   cex = 0.7, cex.axis = 0.7, cex.lab = 0.8, cex.main = 0.8),
+                   cex = 0.49, cex.axis = 1, cex.lab = 1.143, cex.main = 1.143),
     "2x1"    = par(mar = c(3, 3, 1.5, 0.5),     mgp = c(1.8, 0.5, 0), tcl = -0.3,
                    mfrow = c(2, 1),
-                   cex = 0.8, cex.axis = 0.8, cex.lab = 0.9, cex.main = 0.9),
+                   cex = 0.64, cex.axis = 1, cex.lab = 1.125, cex.main = 1.125),
     "2x2"    = par(mar = c(3, 3, 1.5, 0.5),     mgp = c(1.8, 0.5, 0), tcl = -0.3,
                    mfrow = c(2, 2),
-                   cex = 0.8, cex.axis = 0.8, cex.lab = 0.9, cex.main = 0.9),
+                   cex = 0.64, cex.axis = 1, cex.lab = 1.125, cex.main = 1.125),
     "2x3"    = par(mar = c(3, 2.5, 1.5, 0.5),   mgp = c(1.5, 0.4, 0), tcl = -0.3,
                    mfrow = c(2, 3),
-                   cex = 0.75, cex.axis = 0.75, cex.lab = 0.85, cex.main = 0.85),
+                   cex = 0.5625, cex.axis = 1, cex.lab = 1.133, cex.main = 1.133),
     "2x3c"   = par(mar = c(3, 2.5, 1.5, 0.5),   mgp = c(1.5, 0.4, 0), tcl = -0.3,
                    mfcol = c(2, 3),
-                   cex = 0.75, cex.axis = 0.75, cex.lab = 0.85, cex.main = 0.85),
+                   cex = 0.5625, cex.axis = 1, cex.lab = 1.133, cex.main = 1.133),
     "3x2"    = par(mar = c(2.5, 2.5, 1.5, 0.5), mgp = c(1.5, 0.4, 0), tcl = -0.3,
                    mfrow = c(3, 2),
-                   cex = 0.75, cex.axis = 0.75, cex.lab = 0.85, cex.main = 0.85)
+                   cex = 0.5625, cex.axis = 1, cex.lab = 1.133, cex.main = 1.133)
   )
 }
+
 ```
 
 In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods using the *EMC2* package [@stevensonEMC2PackageCognitive2024]. Specifically, we will fit models to dataset 1 from [@mileticExplainingMultiScaleChoice2025], which corresponds to the 'choice, short [CS]' condition from [@Wagenmakers2004a]. In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
@@ -195,8 +202,7 @@ invisible(capture.output({ckc <- check(emc_rdm, plot_worst=FALSE)}))
 subn <- which.max(lapply(ckc$alpha, function(x) max(x[1,])))
 cap <- paste0("Trace plots of the sampled parameters with highest Rhat values (i.e., worst convergence) at the group-level mean (left, mu), the group-level variance (middle, sigma2), and the subject-level (alpha; in this case, subject number ", subn, "). ESS = effective sample size.")
 print_par("1x3")
-par(cex=.5)
-check(emc_rdm, mfrow=c(1,3))
+check(emc_rdm, nopar=TRUE)
 ```
 
 Posterior distributions and credible intervals can be obtained with `plot_pars()` and `credint()`, respectively. Both accept a selection argument specifying which parameters to plot — by default "mu" (group-level means), with alternatives "alpha" (subject-level), "sigma2" (group-level variance), and "correlation" (group-level correlations).
@@ -208,7 +214,7 @@ plot_pars(emc_rdm)
 ```{r baseline-rdm-plotpars-run, fig.height=1.8, fig.width=5, echo=FALSE, fig.cap=cap, dependson="baseline-fit-run"}
 cap <- "Posterior density (black) and prior density (red) of sampled group-level mean parameters of the baseline RDM. Contraction indicates the reduction of uncertainty in the posterior versus the prior (1 minus the ratio of the posterior to prior variance)."
 print_par("1x4")
-plot_pars(emc_rdm, layout=c(1, 4))
+plot_pars(emc_rdm, nopar=TRUE)
 ```
 
 By default, the `credint()` function returns the credible intervals for the sampled parameters, but it can also return the credible intervals of implied posteriors after mapping and transforming:
@@ -224,28 +230,34 @@ Once fit, we can generate posterior predictives with the `predict()` function, a
 pp_rdm <- predict(emc_rdm)
 pp_wdm <- predict(emc_wdm)
 
+par(mfrow=c(1,4))
 plot_cdf(emc_rdm, pp_rdm, 
          # with the factors argument, we request a separate CDF for each level of the factor S (stimulus)
-         factors=c("S"))
+         factors=c("S"),
+         # with the nopar=TRUE argument, we request EMC2 not to handle the layout, which we do here manually to plot the models side-by-side
+         nopar=TRUE)
+plot_cdf(emc_wdm, pp_wdm, factors=c("S"), nopar=TRUE)
+
 ```
 
-```{r baseline-predict-pp-run, echo=FALSE, fig.height=1.8, fig.width=5, fig.cap=cap, dependson="baseline-fit-run"}
-cap <- "Defective cumulative density plots of the baseline RDM. Circles indicate the 10th, 50th, and 90ths quantiles of the response distributions for both response types R (solid = 'even', dotted = 'odd') in both conditions of the stimulus S (panels) for the data (black) and posterior predictives (green). The cumulative density functions are made defective as they sum to the proportion of each choice (rather than 1)."
+```{r baseline-predict-pp-run, echo=FALSE, fig.height=2, fig.width=6, fig.cap=cap, dependson="baseline-fit-run"}
+cap <- "Defective cumulative density plots of the baseline RDM (left two columns) and WDM (right two columns). Circles indicate the 10th, 50th, and 90ths quantiles of the response time distributions for each response type R (solid = 'even', dotted = 'odd') in both conditions of the stimulus S (panels) for the data (black) and posterior predictives (green). The cumulative density functions are made defective as they sum to the proportion of each choice (rather than 1)."
 pp_rdm <- predict(emc_rdm, n_cores=10)
 pp_wdm <- predict(emc_wdm, n_cores=10)
-print_par("1x2")
-plot_cdf(emc_rdm, pp_rdm, factors=c("S"))
+print_par("1x4")
+plot_cdf(emc_rdm, pp_rdm, factors=c("S"), nopar=TRUE, xlim=c(0, 1.3))
+plot_cdf(emc_wdm, pp_wdm, factors=c("S"), nopar=TRUE, xlim=c(0, 1.3))
 ```
 
-```{r baseline-predict-wdm-cdf-code, eval=FALSE}
-plot_cdf(emc_wdm, pp_wdm, factors=c("S"))
-```
+<!-- ```{r baseline-predict-wdm-cdf-code, eval=FALSE} -->
+<!-- plot_cdf(emc_wdm, pp_wdm, factors=c("S")) -->
+<!-- ``` -->
 
-```{r baseline-predict-wdm-cdf-run, echo=FALSE, fig.height=2.5, fig.width=7, fig.cap=cap, dependson="baseline-predict-pp-run"}
-cap <- "Defective cumulative density plots of the baseline WDM. Circles indicate the 10th, 50th, and 90ths quantiles of the response distributions for both response types R (solid = 'even', dotted = 'odd') in both conditions of the stimulus S (panels) for the data (black) and posterior predictives (green). The cumulative density functions are made defective as they sum to the proportion of each choice (rather than 1)."
-print_par("1x2")
-plot_cdf(emc_wdm, pp_wdm, factors=c("S"))
-```
+<!-- ```{r baseline-predict-wdm-cdf-run, echo=FALSE, fig.height=2.5, fig.width=7, fig.cap=cap, dependson="baseline-predict-pp-run"} -->
+<!-- cap <- "Defective cumulative density plots of the baseline WDM. Circles indicate the 10th, 50th, and 90ths quantiles of the response distributions for both response types R (solid = 'even', dotted = 'odd') in both conditions of the stimulus S (panels) for the data (black) and posterior predictives (green). The cumulative density functions are made defective as they sum to the proportion of each choice (rather than 1)." -->
+<!-- #print_par("1x2") -->
+<!-- #plot_cdf(emc_wdm, pp_wdm, factors=c("S"), nopar=TRUE) -->
+<!-- ``` -->
 
 The RDM shows a slightly better fit, most visibly in the accuracy and 90th RT quantile. Formal model comparisons using DIC, BPIC, or marginal deviances (note that preferred models have lower DIC [@spiegelhalterBayesianMeasuresModel2002], BPIC [@Ando2007] or MD (=$-2*\texttt{marginal likelihood}$) values) can be obtained with `compare()`:
 
@@ -282,7 +294,7 @@ recovery(emc_simulated_rdm, true_pars, selection="alpha")
 ```{r baseline-recovery-plot-run, echo=FALSE, fig.width=6, fig.height=2., fig.cap=cap, dependson="baseline-recovery-run"}
 cap <- "Parameter recovery results for the subject-level parameters. Estimated parameters (y-axis) are plotted against data-generating (x-axis). Error bars indicate 95\\% credible intervals, circles are on the median posterior, and diagonal lines is the identity. Pearson correlation between data-generating and posterior median. RMSE = root mean squared error."
 print_par("1x4")
-recovery(emc_simulated_rdm, true_pars, selection="alpha", layout=c(1,4))
+recovery(emc_simulated_rdm, true_pars, selection="alpha", nopar=TRUE)
 ```
 
 *EMC2* has built-in routines for simulation-based calibration that can be run on these models as well - for these, see `?run_sbc`.
@@ -300,13 +312,27 @@ trend_help()
 
 The last section, `phase`, warrants some extra attention. As demonstrated above, in *EMC2*, the user can define parameters using model formula language, as we did above when defining the designs. *EMC2* uses these to create a design matrix by mapping the relevant factors to each design cell. This mapping defines how sampled parameters translate back to the implied "core" parameters for each accumulator on each trial. In the case of the RDM, once mapped, only the core parameters `v`, `B`, `t0`, `s`, (and `A`, its omission in the design above causes it to be fixed to zero) parameters per accumulator remain. However, in many applications, the parameter of interest is defined as a between-accumulator difference (e.g., `v_lMd` in the RDM example above), or a between-condition difference (e.g., the effect of speed-accuracy trade-off cues on thresholds). These parameters only exist pre-mapping, and thus, the trend should be applied prior to mapping by setting `phase='premap'` (the default).
 
-There is an important caveat here. By default, *EMC2* estimates some parameters with a lower bound (e.g., non-decision time, thresholds, RDM's drift rates), using a log scaling, and other parameters with both a lower and upper bound, using a probit (inverse cumulative normal) scaling. Parameters are *mapped* on the scale on which they are estimated, and *then* transformed. This also implies that if a trend is applied prior to mapping, the resulting parameters might later be transformed, leading to a potentially unwanted non-linear effect of the covariate on the parameter (see Figure \ref{fig_mapping}).
+There is an important caveat here. By default, *EMC2* estimates some parameters with a lower bound (e.g., non-decision time, thresholds, RDM's drift rates), using a log scaling, and other parameters with both a lower and upper bound, using a probit (inverse cumulative normal) scaling. Parameters are *mapped* on the scale on which they are estimated, and *then* transformed. This also implies that if a trend is applied prior to mapping, the resulting parameters might later be transformed, leading to a potentially unwanted non-linear effect of the covariate on the parameter (see Figure \ref{fig:fig-mapping}).
 
+```{r echo=FALSE}
+cap_mapping <- paste0(
+  "Illustration of parameter mapping and transformation in ", tt("EMC2"),
+  ". The estimated parameter vector is first mapped, then transformed.",
+  " In the illustration, only drift rates ", tt("v"), " and thresholds ", tt("B"), " are shown.",
+  " In this example, the trend is applied ", tt("premap"),
+  ", which leads the threshold to increase with trials (", tt("t"), ").",
+  " After mapping, the parameters are expanded to each design cell,",
+  " with in this example two accumulators per trial (one for each latent response ", tt("lR"),
+  ", and one matches the stimulus ", tt("lM=T"), ").",
+  " Finally, the parameters are transformed to the natural scale.",
+  " Since in this example, a linear trend is applied ", tt("premap"),
+  ", this leads to an exponentially increasing trend ", tt("posttransform"), "."
+)
+knitr::opts_chunk$set(fig.cap = cap_mapping)
+```
+```{tikz fig-mapping, echo=FALSE, fig.align='center', out.width='100%',         fig.ext=if(knitr::is_html_output()) 'svg' else 'pdf',         engine.opts=list(convert='pdf2svg')}
 
-```{=latex}
-\begin{figure}[h!]
-\centering
-\adjustbox{max width=\textwidth}{%
+\usetikzlibrary{positioning,arrows.meta,shapes}
 \begin{tikzpicture}[
     node distance=1.0cm,
     box/.style={rectangle, draw, rounded corners, minimum height=1cm, align=center},
@@ -379,11 +405,10 @@ There is an important caveat here. By default, *EMC2* estimates some parameters 
 \draw[->] (premap_tab.east) -- (pretrans_tab.west);
 \draw[->] (pretrans_tab.east) -- (posttrans_tab.west);
 
-\end{tikzpicture}%
-}
-\caption{Illustration of parameter mapping and transformation in \texttt{EMC2}. The estimated parameter vector is first mapped, then transformed. In the illustration, only drift rates \texttt{v} and thresholds \texttt{B} are shown. In this example, the trend is applied \texttt{premap}, which leads the threshold to increase with trials (\texttt{t}). After mapping, the parameters are expanded to each design cell, with in this example two accumulators per trial (one for each latent response \texttt{lR}, and one matches the stimulus \texttt{lM=T}). Finally, the parameters are transformed to the natural scale. Since in this example, a linear trend is applied \texttt{premap}, this leads to an exponentially increasing trend \texttt{posttransform}.}
-\label{fig_mapping}
-\end{figure}
+\end{tikzpicture}
+```
+```{r echo=FALSE}
+knitr::opts_chunk$set(fig.cap = NULL) # reset
 ```
 
 ### Linear trends
@@ -600,7 +625,7 @@ subn <- which.max(lapply(ckc$alpha, function(x) max(x[1,])))
 cap <- paste0("Trace plots of the sampled parameters with highest Rhat values (i.e., worst convergence) at the group-level mean (left, mu), the group-level variance (middle, sigma2), and the subject-level (alpha; in this case, subject number ", subn, "). ESS = effective sample size.")
 
 print_par("1x3")
-check(emc, mfrow=c(1,3))
+check(emc, nopar=TRUE)
 ```
 
 ```{r lin-posterior-code, eval=FALSE}
@@ -610,7 +635,7 @@ plot_pars(emc)
 ```{r lin-posterior-run, echo=FALSE, fig.width=5.5, fig.height=1.8, fig.cap=cap, dependson="lin-fit-run"}
 cap <- "Posterior density (black) and prior density (red) of sampled group-level mean parameters of the RDM with a linear trend. Contraction indicates the reduction of uncertainty in the posterior versus the prior (1 minus the ratio of the posterior to prior variance)."
 print_par("1x5")
-plot_pars(emc, layout=c(1,5))
+plot_pars(emc, nopar=TRUE)
 ```
 
 ```{r lin-credint-code, eval=FALSE}
@@ -633,13 +658,13 @@ plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
            filter=function(data) data$lR=="odd")
 ```
 
-```{r lin-pp-run, echo=FALSE, fig.height=3, fig.width=5, fig.cap=cap, dependson="lin-fit-run"}
+```{r lin-pp-run, echo=FALSE, fig.height=2.5, fig.width=5, fig.cap=cap, dependson="lin-fit-run"}
 cap <- "Estimated thresholds (B) as a function of trial number. Each panel corresponds to one participant (titles). Green shaded areas correspond to the 95\\% credible interval, the dark green line corresponds to the mean of the posterior predictives."
 pp <- predict(emc, n_cores=20, return_trialwise_parameters=TRUE)
 print_par("2x3")
 plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
            par_name="B",
-           filter=function(data) data$lR=="odd")
+           filter=function(data) data$lR=="odd", nopar=TRUE)
 ```
 
 <!-- Here, the green shaded area indicated the 95% credible interval of the posterior on the threshold for each trial. We can also plot the individual thresholds of each posterior predictive separately as lines: -->
@@ -740,10 +765,10 @@ p_vector_decr <- c(B=1, v=1, v_lMd=1, t0=0.1, B.w=1, B.d_ed=2)
 print_par("1x2")
 plot_trend(p_vector_incr, emc=emc_incr,
            par_name="B", subject=1, filter=function(data) data$lR=="odd",
-           main="B odd")
+           main="B odd", nopar=TRUE)
 plot_trend(p_vector_decr, emc=emc_decr,
            par_name="B", subject=1, filter=function(data) data$lR=="odd",
-           main="B odd")
+           main="B odd", nopar=TRUE)
 ```
 
 
@@ -1100,7 +1125,7 @@ invisible(capture.output({ckc <- check(emc, plot_worst=FALSE)}))
 subn <- which.max(lapply(ckc$alpha, function(x) max(x[1,])))
 cap <- paste0("Trace plots of the sampled parameters with highest Rhat values (i.e., worst convergence) at the group-level mean (left, mu), the group-level variance (middle, sigma2), and the subject-level (alpha; in this case, subject number ", subn, "). ESS = effective sample size.")
 print_par("1x3")
-check(emc, mfrow=c(1,3))
+check(emc, nopar=TRUE)
 ```
 
 ```{r sm-posterior-code, eval=FALSE}
@@ -1110,7 +1135,7 @@ plot_pars(emc)
 ```{r sm-posterior-run, echo=FALSE, fig.height=3, fig.width=5, fig.cap=cap, dependson="sm-fit-run"}
 cap <- "Posterior density (black) and prior density (red) of sampled group-level mean parameters of the RDM with an SM mechanism. Contraction indicates the reduction of uncertainty in the posterior versus the prior (1 minus the ratio of the posterior to prior variance)."
 print_par("2x3")
-plot_pars(emc, layout=c(2,3))
+plot_pars(emc, nopar=TRUE)
 ```
 
 We find excellent convergence properties, especially given that learning rate parameters are often hard to estimate. Note that learning rates are by default sampled on the probit scale, so if we want to know the mean learning rate, we need to map and transform the parameters first (this can take a while to run):
@@ -1175,12 +1200,12 @@ print_par("2x3c")
 for(subject in 1:3) {
   plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
              par_name="B", subject=subject, 
-             filter= function(data) data$lR=="odd", 
-             main=paste0(subject, " odd"), xlim=c(1,20))
+             filter=function(data) data$lR=="odd", 
+             main=paste0(subject, " odd"), xlim=c(1,20), nopar=TRUE)
   plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
              par_name="B", subject=subject, 
-             filter= function(data) data$lR=="even", 
-             main=paste0(subject, " even"), xlim=c(1,20))
+             filter=function(data) data$lR=="even", 
+             main=paste0(subject, " even"), xlim=c(1,20), nopar=TRUE)
 }
 ```
 
@@ -1197,7 +1222,7 @@ cap <- "Estimated Q-values corresponding to the SM mechanism for all six partici
 print_par("2x3")
 plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
            par_name="B_lRd.Stim1.Qvalue",
-           xlim=c(1, 20))
+           xlim=c(1, 20), nopar=TRUE)
 ```
 
 \begin{tcolorbox}[title=Advanced note: at="lR"]
