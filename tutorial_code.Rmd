@@ -140,12 +140,12 @@ Here, `subjects` refers to subject number, `S` to the presented stimulus (even/o
 
 ## Baseline models
 
-We begin by setting up two static baseline models — one using a racing diffusion model (RDM) and one using a Wiener diffusion model (WDM), the latter being the diffusion decision model (DDM) without between-trial variability (sometimes called the 'simple' DDM). Using these models, we demonstrate a full analysis pipeline: model specification, prior specification, fitting, convergence checking, posterior predictive (quality of fit) checks, model comparison, and a simple parameter recovery. We then show how the same pipeline applies when model specifications are extended to include time-varying parameters.
+We begin by setting up two static baseline models — one using a racing diffusion model (RDM) and one using a Wiener diffusion model (WDM), the latter being the diffusion decision model (DDM) without between-trial variability (sometimes called the 'simple' DDM). Using these models, we demonstrate a minimal but principled analysis pipeline: model specification, prior specification, fitting, convergence checking, posterior predictive (quality of fit) checks, model comparison, and a simple parameter recovery. We then show how the same pipeline applies when model specifications are extended to include time-varying parameters.
 
 In *EMC2*, model specification is done via the `design()` function. It minimally requires the relevant experimental design factors (most easily processed by just passing the data, as we do below), the model (e.g., `RDM`, `DDM`), and a formula specifying which model parameters vary with which design factor using *R*'s linear modelling language. The present dataset has one design factor `S` (for stimulus) with two levels: odd and even. *EMC2* always uses response coding of accumulators (in race models) and bounds (in the WDM/DDM), so the drift rate should vary with S — the evidence for an 'odd' response differs between odd and even trials. We can enforce the WDM drift rate to be equal in magnitude but opposite in sign across the two stimulus levels by specifying a contrast matrix, in which column names represent sampled parameters and matrix values indicate how those parameters are linearly combined to obtain the model parameter in each design cell (rows). Here we define `Smat` with two rows, one per factor level:
 
 ```{r baseline-wdm-design, dependson="load-data"}
-Smat <- matrix(c(-1,1), nrow=2, dimnames=list(NULL,"dif"))
+Smat <- matrix(c(-1, 1), nrow=2, dimnames=list(NULL, "dif"))
 design_WDM <- design(model=DDM,
                      data=dat,
                      contrasts=list(S=Smat),
@@ -192,7 +192,7 @@ plot(prior_RDM)
 cap <- "Implied default priors for the group-level mean parameters of the baseline RDM. \\texttt{v\\_lMTRUE} and \\texttt{v\\_lMFALSE} refer to the drift rate of the accumulators matching ('correct') and mismatching ('error') the stimulus, respectively; \\texttt{B} to the threshold, and \\texttt{t0} to the non-decision time."
 print_par("1x4")
 prior_RDM <- prior(design_RDM)
-plot(prior_RDM, layout=c(1,4))
+plot(prior_RDM, layout=c(1, 4))
 ```
 
 Priors can be overridden with the `prior()` function, as documented in `?prior` and demonstrated in examples below. Next, we can combine the data, design, and priors, and fit:
@@ -259,7 +259,7 @@ Once fit, we can generate posterior predictives with the `predict()` function, a
 pp_rdm <- predict(emc_rdm)
 pp_wdm <- predict(emc_wdm)
 
-par(mfrow=c(1,4))
+par(mfrow=c(1, 4))
 plot_cdf(emc_rdm, pp_rdm, 
          # we request a separate CDF for each level of the factor S (stimulus)
          factors=c("S"),
@@ -326,9 +326,9 @@ print_par("1x4")
 recovery(emc_simulated_rdm, true_pars, selection="alpha", set.par=FALSE)
 ```
 
-*EMC2* has built-in routines for simulation-based calibration that can be run on these models as well - for these, see `?run_sbc`.
+The code above is purely meant for demonstrative purposes; here, we only simulated six participants following the data set size, but real parameter recovery studies should rely on more to cover a wider range of parameter settings. *EMC2* Also has built-in routines for simulation-based calibration that can be run on any models - for this functionality, see `?run_sbc`.
 
-Together, these steps illustrate the key elements of a principled modelling workflow: model specification, prior specification, fitting, convergence checking, posterior predictive checks, and parameter recovery. In the following sections, we turn to time-varying parameters. The same functions apply throughout — the main difference lies in model specification, with some additional considerations for prior specification that we highlight along the way.
+Together, these steps illustrate the key elements of a minimal but principled modelling workflow: model specification, prior specification, fitting, convergence checking, posterior predictive checks, and parameter recovery. In the following sections, we turn to time-varying parameters. The same functions apply throughout — the main difference lies in model specification, with some additional considerations for prior specification that we highlight along the way.
 
 ## Descriptive trends
 
@@ -559,7 +559,7 @@ emc_lin2 <- make_emc(dat, design=RDM_lin_B2)
 emc_lin3 <- make_emc(dat, design=RDM_lin_B3)
 p_vector <- c(B=1, v=1, v_lMd=1,  t0=0.1, B.w=1)
 
-par(mfrow=c(1,2))
+par(mfrow=c(1, 2))
 plot_trend(p_vector, emc=emc_lin2, par_name="B", subject=1,
            filter=function(data) data$lR=="odd",
            main="Posttransform")
@@ -632,7 +632,7 @@ cap <- "Prior distributions for the group-level mean parameters of the RDM with 
 prior_linB3 <- prior(RDM_lin_B3, mu_mean=c(B=2), mu_sd=c(B=0.5))
 emc <- make_emc(dat, design=RDM_lin_B3, prior_list=prior_linB3)
 print_par("1x5")
-plot(prior_linB3, map=FALSE, layout=c(1,5))
+plot(prior_linB3, map=FALSE, layout=c(1, 5))
 ```
 
 We can now proceed with fitting, checking convergence, and plotting the posteriors and inspecting credible intervals. Note that we use the same functions as in the baseline model examples in earlier sections.
@@ -753,7 +753,7 @@ emc_decr <- make_emc(dat, design_exp_decr)
 p_vector_incr <- c(B=1, v=1, v_lMd=1, t0=0.1, B.w=1, B.d_ei=2)
 p_vector_decr <- c(B=1, v=1, v_lMd=1, t0=0.1, B.w=1, B.d_ed=2)
 
-par(mfrow=c(1,2))
+par(mfrow=c(1, 2))
 plot_trend(p_vector_incr, emc=emc_incr,
            par_name="B", subject=1, filter=function(data) data$lR=="odd",
            main="B odd")
@@ -938,7 +938,7 @@ p_vector <- c(B=1, v=1, v_lMd=2, t0=0.1,
               B.d_ed=2, B.d_ed_block2=1, B.d_ed_block3=1, B.w=.25,
               v_lMd.w=1, v_lMd.d_ei=.2)
 
-par(mfcol=c(1,3))
+par(mfcol=c(1, 3))
 plot_trend(p_vector, emc=emc_multitrend, par_name="B",
            subject=1, filter=function(data) data$lR=="odd", 
            main="Thresholds", xlab="Trial number")
@@ -1039,7 +1039,7 @@ p_vector2 <- c(B=1, v=1, v_lMd=2, t0=0.1, B.d1=-1, B.d2= 0, B.d3=-5, B.d4=  0)
 p_vector3 <- c(B=1, v=1, v_lMd=2, t0=0.1, B.d1= 0, B.d2= 2, B.d3= 8, B.d4=  8)
 p_vector4 <- c(B=1, v=1, v_lMd=2, t0=0.1, B.d1= 1, B.d2=-3, B.d3=-2, B.d4= 10)
 
-par(mfrow=c(1,4))
+par(mfrow=c(1, 4))
 plot_trend(p_vector1, emc=emc_poly, par_name="B",
            subject=1, filter=function(data) data$lR=="odd", 
            main="p_vector1", xlab="Trial number")
@@ -1220,11 +1220,11 @@ for(subject in 1:3) {
   plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
              par_name="B", subject=subject, 
              filter= function(data) data$lR=="odd", 
-             main=paste0(subject, " odd"), xlim=c(1,20))
+             main=paste0(subject, " odd"), xlim=c(1, 20))
   plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
              par_name="B", subject=subject, 
              filter= function(data) data$lR=="even", 
-             main=paste0(subject, " even"), xlim=c(1,20))
+             main=paste0(subject, " even"), xlim=c(1, 20))
 }
 ```
 
@@ -1235,11 +1235,11 @@ for(subject in 1:3) {
   plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
              par_name="B", subject=subject, 
              filter=function(data) data$lR=="odd", 
-             main=paste0(subject, " odd"), xlim=c(1,20), set.par=FALSE)
+             main=paste0(subject, " odd"), xlim=c(1, 20), set.par=FALSE)
   plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
              par_name="B", subject=subject, 
              filter=function(data) data$lR=="even", 
-             main=paste0(subject, " even"), xlim=c(1,20), set.par=FALSE)
+             main=paste0(subject, " even"), xlim=c(1, 20), set.par=FALSE)
 }
 ```
 
