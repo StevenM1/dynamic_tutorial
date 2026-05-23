@@ -72,8 +72,6 @@ print_par <- function(layout = "1panel") {
 }
 ```
 
-# Introduction
-
 In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods using the *EMC2* package [@stevensonEMC2PackageCognitive2024]. Specifically, we will fit models to dataset 1 from [@mileticExplainingMultiScaleChoice2025], which corresponds to the 'choice, short [CS]' condition from [@Wagenmakers2004a]. In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
 
 To enhance readability, the code blocks below only include the arguments strictly required to run the code. In the Rmd-file that generates this document, we include (hidden) blocks that provide additional arguments for multi-core processing to speed up sampling and posterior predictive generation, automatically saving and loading samples, and decorations that improve the visibility of the plots in this pdf-based output. The source document can be found on [INCLUDE LINK], alongside an html-output which facilitates copy and pasting.
@@ -107,7 +105,7 @@ Here, `subjects` refers to subject number, `S` to the presented stimulus (even/o
 
 We begin by setting up two static baseline models — one using a racing diffusion model (RDM) and one using a Wiener diffusion model (WDM), the latter being the diffusion decision model (DDM) without between-trial variability (sometimes called the 'simple' DDM). Using these models, we demonstrate a full analysis pipeline: model specification, prior specification, fitting, convergence checking, posterior predictive (quality of fit) checks, model comparison, and a simple parameter recovery. We then show how the same pipeline applies when model specifications are extended to include time-varying parameters.
 
-In *EMC2*, model specification is done via the `design()` function. It minimally requires the relevant experimental design factors (most easily processed by just passing the data, as we do below), the model (e.g., `RDM`, `DDM`), and a formula specifying which model parameters vary with which design factor using *R*'s linear modelling language. The present dataset has one design factor `S` (for stimulus) with two levels: odd and even. *EMC2* always uses response coding of accumulators (in race models) and bounds (in the WDM/DDM), so the drift rate should vary with S — the evidence for an 'odd' response differs between odd and even trials. We can enforce the DDM drift rate to be equal in magnitude but opposite in sign across the two stimulus levels by specifying a contrast matrix, in which column names represent sampled parameters and matrix values indicate how those parameters are linearly combined to obtain the model parameter in each design cell (rows). Here we define `Smat` with two rows, one per factor level:
+In *EMC2*, model specification is done via the `design()` function. It minimally requires the relevant experimental design factors (most easily processed by just passing the data, as we do below), the model (e.g., `RDM`, `DDM`), and a formula specifying which model parameters vary with which design factor using *R*'s linear modelling language. The present dataset has one design factor `S` (for stimulus) with two levels: odd and even. *EMC2* always uses response coding of accumulators (in race models) and bounds (in the WDM/DDM), so the drift rate should vary with S — the evidence for an 'odd' response differs between odd and even trials. We can enforce the WDM drift rate to be equal in magnitude but opposite in sign across the two stimulus levels by specifying a contrast matrix, in which column names represent sampled parameters and matrix values indicate how those parameters are linearly combined to obtain the model parameter in each design cell (rows). Here we define `Smat` with two rows, one per factor level:
 
 ```{r baseline-wdm-design, dependson="load-data"}
 Smat <- matrix(c(-1,1), nrow=2, dimnames=list(NULL,"dif"))
@@ -139,7 +137,7 @@ design_RDM <- design(model=RDM,
                      formula=list(B~1, v~lM, t0~1))
 ```
 
-Note that the design matrix for drift rates `v` is similar to the DDM case, but the rows now correspond to the matching and mismatching accumulator rather than the two stimulus levels. Inspecting `mapped_pars()`:
+Note that the design matrix for drift rates `v` is similar to the WDM case, but the rows now correspond to the matching and mismatching accumulator rather than the two stimulus levels. Inspecting `mapped_pars()`:
 
 ```{r baseline-rdm-mapped_pars, dependson="baseline-rdm-design"}
 mapped_pars(design_RDM)
@@ -1334,7 +1332,7 @@ plot_history_effects(dat, pp, degree=2, nopar=TRUE)
 These results demonstrate that the second-degree recency effects in response probability are fit reasonably well, but some misfit remains in the response times.
 
 
-### Stimulus memory: DDM and drift rate effects
+### WDM and drift rate effects
 
 The examples above mimic [@mileticExplainingMultiScaleChoice2025] by using an RDM and assuming that stimulus memory causes a threshold (start point) bias. *EMC2* is flexibly designed to implement your own hypotheses. For example, we can propose a WDM instead, and hypothesise that drift rates rather than start points are biased. However, as the minimal implementation below demonstrates, this does not appear to fit as well, and loses quantitative model comparisons:
 
