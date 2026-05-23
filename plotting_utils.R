@@ -110,11 +110,13 @@ plot_history_effects <- function(dat, pp=NULL, hist_type='S',
     par(mfrow=c(2,2))
     for(degree_ in degree) {
       plot_history_effects(dat=dat, pp=pp, hist_type=hist_type, n_hist=n_hist, 
-                           p_random=p_random, degree=degree_, nopar=TRUE, ...)
+                           p_random=p_random, degree=degree_, set.par=FALSE, ...)
     }
     return(invisible(NULL))
   } else {
-    if(!'nopar' %in% names(opts)) par(mfcol=c(1,2))
+    set.par <- !isFALSE(opts$set.par)
+    opts$set.par <- NULL
+    if(set.par) par(mfcol=c(1,2))
   }
   
   # Recode data for degree 2 if necessary
