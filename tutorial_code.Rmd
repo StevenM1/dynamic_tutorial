@@ -7,6 +7,7 @@ output:
     latex_engine: xelatex
     highlight: pygments
     keep_tex: true
+    toc: false
     includes:
       in_header: preamble.tex
   bookdown::html_document2:
@@ -1546,7 +1547,7 @@ pp_fn <- "./cache/ds1_AMa_DDM_pp.RData"
 if(file.exists(pp_fn)) {
   pp_ddm_am <- EMC2:::loadRData(pp_fn)
 } else {
-  pp_ddm_am <- predict(emc, n_cores=30)
+  pp_ddm_am <- predict(emc_ddm_am, n_cores=30)
   save(pp_ddm_am, file=pp_fn)
 }
 print_par("1x1")
