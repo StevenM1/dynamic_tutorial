@@ -293,7 +293,7 @@ if(file.exists(rdm_baseline_fn)) {
   emc_rdm <- EMC2:::loadRData(rdm_baseline_fn)
 } else {
   emc_rdm <- make_emc(dat, design_RDM, prior_list=prior_RDM)
-  emc_rdm <- fit(emc_rdm, cores_per_chain=6, fileName=rdm_baseline_fn)
+  emc_rdm <- fit(emc_rdm, cores_per_chain=1, fileName=rdm_baseline_fn)
   emc_rdm <- add_ICs_MLL(emc_rdm)
   save(emc_rdm, file=rdm_baseline_fn)
 }
@@ -302,7 +302,7 @@ if(file.exists(wdm_baseline_fn)) {
   emc_wdm <- EMC2:::loadRData(wdm_baseline_fn)
 } else {
   emc_wdm <- make_emc(dat, design_WDM)  # when not specified, the default priors are used
-  emc_wdm <- fit(emc_wdm, cores_per_chain=6, fileName=wdm_baseline_fn)
+  emc_wdm <- fit(emc_wdm, cores_per_chain=1, fileName=wdm_baseline_fn)
   emc_wdm <- add_ICs_MLL(emc_wdm)
   save(emc_wdm, file=wdm_baseline_fn)
 }
@@ -427,7 +427,7 @@ Together, these steps illustrate the key elements of a minimal but principled mo
 
 ## Descriptive trends
 
-Both the descriptive trends and the formal mechanisms of dynamics work through `trend` objects in *EMC2*. In this object, you specify (1) the covariate of interest (e.g., time on task), (2) a kernel to apply to the covariate (e.g., linear, power, exponential, polynomial, or delta rule), (3) which decision parameter is informed by the resulting covariate, and (4) the functional form of the mapping between the resulting covariate and the decision parameters, referred to as the `base`. The `trend_help()` function gives an overview of the options:
+Both the descriptive trends and the formal mechanisms of dynamics work through `trend` objects in *EMC2*. A trend object combines two building blocks: a `kernel` and a `base`. The kernel specifies (1) the covariate of interest (e.g., time on task) and (2) the function applied to it (e.g., linear, exponential, power, polynomial, or delta rule). The base specifies (3) which decision parameter is informed by the kernel's output, and (4) the functional form of that mapping. The trend_help() function gives an overview of the available options: The `trend_help()` function gives an overview of the options:
 
 ```{r trendhelp}
 trend_help()
@@ -439,7 +439,7 @@ The `phase` argument controls *when* the trend is applied in the mapping pipelin
 
 However, this has an important implication: by default, *EMC2* estimates parameters that must be strictly positive (e.g., thresholds, non-decision times, RDM drift rates) on the log scale, and parameters bounded between 0 and 1 on the probit scale. Since mapping occurs before transformation, a trend applied `"premap"` will subsequently be passed through these nonlinear transforms — meaning a linear trend on the sampled scale becomes, for example, an exponential trend on the natural scale (as illustrated below).
 
-There are two ways to obtain a linear trend on the natural scale. First, setting `phase="posttransform"` causes the trend to be applied after both mapping and transformation, so the covariate acts directly on the natural-scale parameter. Note, however, that `"posttransform"` cannot be used for parameters that only exist before mapping, such as `v_lMd`. Second, the log transform for the target parameter can be disabled entirely via the `transform` argument of `design()`, so that the parameter is sampled on its natural scale; the trend can then be applied `"premap"` without any subsequent nonlinear transformation. Both approaches are illustrated below.
+There are two ways to obtain a linear trend on the natural scale. First, setting `phase="posttransform"` in the base causes the trend to be applied after both mapping and transformation, so the covariate acts directly on the natural-scale parameter. Note, however, that `"posttransform"` cannot be used for parameters that only exist before mapping, such as `v_lMd`. Second, the log transform for the target parameter can be disabled entirely via the `transform` argument of `design()`, so that the parameter is sampled on its natural scale; the trend can then be applied `"premap"` without any subsequent nonlinear transformation. Both approaches are illustrated below.
 
 ```{tikz fig-mapping-gen, include=FALSE, echo=FALSE, fig.ext=if(knitr::is_html_output()) 'svg' else 'pdf', engine.opts=list(convert='pdf2svg')}
 \usetikzlibrary{positioning,arrows.meta,shapes}
@@ -550,11 +550,13 @@ dat$trials2 <- dat$trials/1024
 
 Which we can then specify as a covariate in `make_trend()`, and pass to `design()`:
 ```{r lin-design, dependson="load-data-trials"}
-lin_trend <- make_trend(cov_names="trials2", # covariate of interest
-                        kernels="lin_incr",  # kernel
-                        par_names="B",       # target parameter
-                        bases="lin",         # functional form
-                        phase="premap")      # and phase
+lin_kernel <- make_kernel(type="lin_incr",     # kernel type
+                          cov_names="trials2") # covariate of interest
+lin_base <- make_base(type="lin",              # base type
+                      target_parameter="B",    # target parameter
+                      kernel=lin_kernel, 
+                      phase="premap")          # and phase
+lin_trend <- make_trend(lin_base)
 
 RDM_lin_B <- design(model=RDM,
                     data=dat,
@@ -604,10 +606,10 @@ The two solutions described above (`phase="posttransform"` and disabling the exp
 
 ```{r lin-phase-code, eval=FALSE}
 # Sample on log scale, but apply trend posttransform
-lin_trend2 <- make_trend(cov_names="trials2",  kernels="lin_incr",
-                         par_names="B", bases="lin",
-                         # Change phase to posttransform:
-                         phase="posttransform")
+lin_base_post <- make_base(type="lin", target_parameter="B", 
+                           kernel=lin_kernel,
+                           phase="posttransform") # change phase
+lin_trend2 <- make_trend(lin_base_post)
 RDM_lin_B2 <- design(model=RDM,
                      data=dat,
                      contrasts=list(lM=ADmat),
@@ -618,10 +620,6 @@ RDM_lin_B2 <- design(model=RDM,
                      report_p_vector=FALSE)
 
 # Alternatively, sample on natural scale, and apply trend premap
-lin_trend3 <- make_trend(cov_names="trials2", kernels="lin_incr",
-                         par_names="B", bases="lin",
-                         # Or revert to premap...
-                         phase="premap") 
 RDM_lin_B3 <- design(model=RDM,
                      data=dat,
                      contrasts=list(lM=ADmat),
@@ -630,7 +628,7 @@ RDM_lin_B3 <- design(model=RDM,
                      # ...and tell EMC2 to sample the threshold on the natural scale
                      transform=list(func=c(B="identity")),
                      formula=list(B~1, v~lM, t0~1),
-                     trend=lin_trend3,
+                     trend=lin_trend,  # original trend
                      report_p_vector=FALSE)
 
 # Plot both trends with the same parameter vector
@@ -649,10 +647,10 @@ plot_trend(p_vector, emc=emc_lin3, par_name="B", subject=1,
 
 ```{r lin-phase-run, echo=FALSE, fig.width=fig_w[["1x2"]], fig.height=fig_h[["1x2"]], dependson="lin-design", fig.cap="Trialwise threshold parameters when using a linear effect of trials at the posttransform stage (left), or at the premap stage without an exponentiation (right)."}
 # Sample on log scale, but apply trend posttransform
-lin_trend2 <- make_trend(cov_names="trials2",  kernels="lin_incr",
-                         par_names="B", bases="lin",
-                         # Change phase to posttransform:
-                         phase="posttransform")
+lin_base_post <- make_base(type="lin", target_parameter="B", 
+                           kernel=lin_kernel,
+                           phase="posttransform") # change phase
+lin_trend2 <- make_trend(lin_base_post)
 RDM_lin_B2 <- design(model=RDM,
                      data=dat,
                      contrasts=list(lM=ADmat),
@@ -663,10 +661,6 @@ RDM_lin_B2 <- design(model=RDM,
                      report_p_vector=FALSE)
 
 # Alternatively, sample on natural scale, and apply trend premap
-lin_trend3 <- make_trend(cov_names="trials2", kernels="lin_incr",
-                         par_names="B", bases="lin",
-                         # Or revert to premap...
-                         phase="premap")
 RDM_lin_B3 <- design(model=RDM,
                      data=dat,
                      contrasts=list(lM=ADmat),
@@ -675,7 +669,7 @@ RDM_lin_B3 <- design(model=RDM,
             # ...and tell EMC2 to sample the threshold on the natural scale
                      transform=list(func=c(B="identity")),
                      formula=list(B~1, v~lM, t0~1),
-                     trend=lin_trend3,
+                     trend=lin_trend,
                      report_p_vector=FALSE)
 
 # Plot both trends with the same parameter vector
@@ -727,7 +721,7 @@ linear_trend_fn <- "./cache/ds1_linB.RData"
 if(file.exists(linear_trend_fn)) {
   emc <- EMC2:::loadRData(linear_trend_fn)
 } else {
-  emc <- fit(emc, cores_per_chain=6, fileName=linear_trend_fn)
+  emc <- fit(emc, cores_per_chain=1, fileName=linear_trend_fn)
 }
 ```
 
@@ -802,7 +796,7 @@ if(file.exists(fn)) {
   true_pars <- attr(pp, "pars")[[postn]]
   true_trajectories <- attr(pp, 'trialwise_parameters')[[postn]]
   emc_simulated_linB <- make_emc(simulated_data, RDM_lin_B3, prior_list=prior_linB3)
-  emc_simulated_linB <- fit(emc_simulated_linB, cores_per_chain=6, fileName=fn)
+  emc_simulated_linB <- fit(emc_simulated_linB, cores_per_chain=2, fileName=fn)
   save(emc_simulated_linB, simulated_data, true_pars, true_trajectories, postn, file=fn)
 }
 ```
@@ -848,10 +842,12 @@ plot_trend(pp2, emc=emc_simulated_linB, par_name='B', true_trajectories=true_tra
 Practice effects tend to be large initially and then gradually decay to a positive asymptote. Exponential or power functions can be used to model such effects. *EMC2* offers kernels that enforce either an increase or decrease. To demonstrate these functional forms:
 
 ```{r exp-design-code, eval=FALSE}
-trend_exp_incr <- make_trend(par_names="B", cov_names="trials2",
-                             kernels="exp_incr", bases="lin")
-trend_exp_decr <- make_trend(par_names="B", cov_names="trials2",
-                             kernels="exp_decr", bases="lin")
+kernel_exp_incr <- make_kernel(type="exp_incr", cov_names="trials2")
+kernel_exp_decr <- make_kernel(type="exp_decr", cov_names="trials2")
+base_exp_incr <- make_base(type="lin", target_parameter="B", kernel=kernel_exp_incr)
+base_exp_decr <- make_base(type="lin", target_parameter="B", kernel=kernel_exp_decr)
+trend_exp_incr <- make_trend(base_exp_incr)
+trend_exp_decr <- make_trend(base_exp_decr)
 
 # The two designs below are identical but for the trend argument
 design_exp_incr <- design(model=RDM,
@@ -890,10 +886,12 @@ plot_trend(p_vector_decr, emc=emc_decr,
 
 ```{r exp-design-run, echo=FALSE, fig.width=fig_w[["1x2"]], fig.height=fig_h[["1x2"]], fig.cap=cap, dependson="load-data-trials"}
 cap <- "Example of increasing (left) and decreasing (right) exponential trends on threshold."
-trend_exp_incr <- make_trend(par_names="B", cov_names="trials2",
-                             kernels="exp_incr", bases="lin")
-trend_exp_decr <- make_trend(par_names="B", cov_names="trials2",
-                             kernels="exp_decr", bases="lin")
+kernel_exp_incr <- make_kernel(type="exp_incr", cov_names="trials2")
+kernel_exp_decr <- make_kernel(type="exp_decr", cov_names="trials2")
+base_exp_incr <- make_base(type="lin", target_parameter="B", kernel=kernel_exp_incr)
+base_exp_decr <- make_base(type="lin", target_parameter="B", kernel=kernel_exp_decr)
+trend_exp_incr <- make_trend(base_exp_incr)
+trend_exp_decr <- make_trend(base_exp_decr)
 
 # The two designs below are identical but for the trend argument
 design_exp_incr <- design(model=RDM,
@@ -939,8 +937,9 @@ Having both increasing and decreasing kernels may appear redundant, since the di
 We can force the sampler to sample only increasing trends by restricting the range of `w`. This can be done by sampling `w` on the log-scale, and transforming it to the natural scale (see below for a demonstration). Note that transformations applied to parameters relating to the trends are always applied prior to estimating the trend.
 
 ```{r exp-direction-code, eval=FALSE}
-trend_exp_incr <- make_trend(par_names="v_lMd", cov_names="trials2",
-                             kernels="exp_incr", bases="lin")
+trend_exp_incr <- make_trend(make_base(type="lin", 
+                                       target_parameter="v_lMd", 
+                                       kernel=kernel_exp_incr))
 design_exp_incr <- design(model=RDM,
                           data=dat,
                           contrasts=list(lM=ADmat),
@@ -983,8 +982,9 @@ plot_trend(p_vector3, emc=emc_incr, par_name="v",
 ```{r exp-direction-run, echo=FALSE, fig.width=fig_w[["2x3"]], fig.height=fig_h[["2x3"]],  fig.cap=cap}
 cap <- "Demonstration of enforcing a direction of an effect. Irrespective of the sign of \\texttt{v\\_lMd.w} (-1 for column 1, 0 for column 2, and 1 for column 3), the difference between the matching and mismatching accumulator's drift rate increases over trials when \\texttt{v\\_lMd.w} is estimated on the log scale and the increasing exponential kernel is used."
 
-trend_exp_incr <- make_trend(par_names="v_lMd", cov_names="trials2",
-                             kernels="exp_incr", bases="lin")
+trend_exp_incr <- make_trend(make_base(type="lin", 
+                                       target_parameter="v_lMd", 
+                                       kernel=kernel_exp_incr))
 design_exp_incr <- design(model=RDM,
                           data=dat,
                           contrasts=list(lM=ADmat),
@@ -1044,10 +1044,12 @@ dat$stimulus_repetition <- ave(seq_along(dat$S),
                                dat$S, FUN=seq_along)
 
 # combine two trends
-trends <- make_trend(par_names=c("B", "v_lMd"),
-                     cov_names=c("trial_in_block", "stimulus_repetition"),
-                     kernels=c("exp_decr", "exp_incr"),
-                     bases=c("lin", "lin"))
+kernel1 <- make_kernel(type="exp_decr", cov_names="trial_in_block")
+kernel2 <- make_kernel(type="exp_incr", cov_names="stimulus_repetition")
+base1 <- make_base(type="lin", target_parameter="B", kernel=kernel1)
+base2 <- make_base(type="lin", target_parameter="v_lMd", kernel=kernel2)
+trends <- make_trend(base1, base2)
+
 design_multitrend <- design(model=RDM,
                             data=dat,
                             contrasts=list(lM=ADmat),
@@ -1098,10 +1100,11 @@ dat$stimulus_repetition <- ave(seq_along(dat$S),
                                dat$S, FUN=seq_along)
 
 # combine two trends
-trends <- make_trend(par_names=c("B", "v_lMd"),
-                     cov_names=c("trial_in_block", "stimulus_repetition"),
-                     kernels=c("exp_decr", "exp_incr"),
-                     bases=c("lin", "lin"))
+kernel1 <- make_kernel(type="exp_decr", cov_names="trial_in_block")
+kernel2 <- make_kernel(type="exp_incr", cov_names="stimulus_repetition")
+base1 <- make_base(type="lin", target_parameter="B", kernel=kernel1)
+base2 <- make_base(type="lin", target_parameter="v_lMd", kernel=kernel2)
+trends <- make_trend(base1, base2)
 design_multitrend <- design(model=RDM,
                             data=dat,
                             contrasts=list(lM=ADmat),
@@ -1152,10 +1155,11 @@ Note that the kernel parameters (`d1, d2, d3, d4`) already weigh the contributio
 
 ```{r poly-plot-code, eval=FALSE}
 dat$tctrd <- dat$trials2-mean(dat$trials2)
-trend_poly <- make_trend(par_names="B",
-                         cov_names="tctrd",
-                         kernels="poly4",
-                         bases="add")
+# for a single base & kernel, a one-liner suffices
+trend_poly <- make_trend(make_base(type="add", target_parameter="B",
+                                   kernel=make_kernel(type="poly4", 
+                                                      cov_names="tctrd")))
+
 design_poly <- design(model=RDM,
                       data=dat,
                       contrasts=list(lM=ADmat),
@@ -1191,10 +1195,10 @@ plot_trend(p_vector4, emc=emc_poly, par_name="B",
 ```{r poly-plot-run, echo=FALSE, fig.width=fig_w[["1x4"]], fig.height=fig_h[["1x4"]], fig.cap=cap, dependson="load-data-trials"}
 cap <- "Illustration of the flexibility of the polynomial kernel: With four different (arbitrarily chosen) parameter sets, widely different shapes of trends can be obtained. Here, they are visualised as trends on thresholds \\texttt{B}, but they can be on any parameter."
 dat$tctrd <- dat$trials2-mean(dat$trials2)
-trend_poly <- make_trend(par_names="B",
-                         cov_names="tctrd",
-                         kernels="poly4",
-                         bases="add")
+# for a single base & kernel, a one-liner suffices
+trend_poly <- make_trend(make_base(type="add", target_parameter="B",
+                                   kernel=make_kernel(type="poly4", 
+                                                      cov_names="tctrd")))
 design_poly <- design(model=RDM,
                       data=dat,
                       contrasts=list(lM=ADmat),
@@ -1255,11 +1259,11 @@ Note the extra parameter here: $w_{SM}$.
 # Let's reload the data to drop all covariates created earlier
 load(url(data_url))
 dat$Stim1 <- ifelse(dat$S=="even", 1, -1)
-SM_trend <- make_trend(cov_names=c("Stim1"),
-                       kernels="delta",
-                       par_names="B_lRd",
-                       bases="lin",
-                       phase="premap")
+SM_kernel <- make_kernel(type="delta", cov_names="Stim1")
+SM_base <- make_base(type="lin", target_parameter="B_lRd", 
+                     kernel=SM_kernel, phase="premap")
+SM_trend <- make_trend(SM_base)
+
 RDM_SM <- design(model=RDM,
                  data=dat,
                  contrasts=list(lM=ADmat, lR=ADmat),
@@ -1280,7 +1284,7 @@ if(file.exists(fn)) {
 } else {
   prior_SMB <- prior(RDM_SM, mu_mean=c(B=2), mu_sd=c(B=0.5))
   emc <- make_emc(dat, design=RDM_SM, prior_list=prior_SMB)
-  emc <- fit(emc, cores_per_chain=6, fileName=fn)
+  emc <- fit(emc, cores_per_chain=2, fileName=fn)
 }
 ```
 
@@ -1380,9 +1384,9 @@ for(subject in 1:3) {
 Alternatively, we can plot the evolution of the Q-values themselves. Note that `predict()` was run with another argument: `return_trialwise_parameters=TRUE`, which returns the updated covariates as an attribute. We can use this as follows:
 
 ```{r sm-qvalues-code, eval=FALSE}
-# B_lRd.Stim1.Qvalue is the name EMC2 assigns to the Q-values of the delta rule applied to Stim1 for parameter B_lRd
+# k1.Qvalue is the name EMC2 assigns to the Q-values of the delta rule of kernel 1
 plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
-           par_name="B_lRd.Stim1.Qvalue",
+           par_name="k1.Qvalue",
            xlim=c(1, 20))
 ```
 
@@ -1390,7 +1394,7 @@ plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
 cap <- "Estimated Q-values corresponding to the SM mechanism for all six participants (panels). Green shaded areas indicate the 95\\% credible interval."
 print_par("2x3")
 plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
-           par_name="B_lRd.Stim1.Qvalue",
+           par_name="k1.Qvalue",
            xlim=c(1, 20), set.par=FALSE)
 ```
 
@@ -1444,11 +1448,10 @@ lag <- function(x, shift = 1) {
 }
 dat$Stim1 <- ifelse(dat$S=="even", 1, -1)      # S_{t}
 dat$Stim2 <- dat$Stim1*lag(dat$Stim1,1) # S_{t-1}S_{t}
-RM_trend <- make_trend(cov_names=c("Stim2"),
-                       kernels="delta",
-                       par_names="B_lR2d",
-                       bases="lin",
-                       phase="premap")
+RM_kernel <- make_kernel(type="delta", cov_names="Stim2")
+RM_base <- make_base(type="lin", target_parameter="B_lR2d", 
+                     kernel=RM_kernel, phase="premap")
+RM_trend <- make_trend(RM_base)
 
 make_lR2 <- function(x) {
   # note that we need to use lag 2, since the dadm has one row per accumulator
@@ -1474,7 +1477,7 @@ Before fitting, we might want to simulate some data to test whether it indeed de
 
 ```{r rm-simulate-code, eval=FALSE}
 p_vector <- sampled_pars(RDM_RM)
-p_vector[1:6] <- c(log(2), log(1), .5, log(.15), 2, qnorm(0.1))
+p_vector[1:6] <- c(log(2), log(1), .5, log(.15), qnorm(0.1), 2)
 simDat <- make_data(p_vector, RDM_RM, data=dat)
 # the plot_history_effects()-function takes an additional argument: degree, which can be 1 for first-degree or 2 for second-degree effects
 plot_history_effects(dat=simDat, degree=2)
@@ -1482,7 +1485,7 @@ plot_history_effects(dat=simDat, degree=2)
 ```{r rm-simulate-run, echo=FALSE, fig.width=fig_w[["1x2"]], fig.height=fig_h[["1x2"]], fig.cap=cap, dependson="rm-design"}
 cap <- "Effects of local stimulus (S) repetition history on response times (left) and response (R) probability (right). X-axis labels indicate the three most recent trials' stimuli, coded as whether they repeated (R) or alternated (A) the preceding trial (e.g., AAA = alternate, alternate, alternate, AAR = alternate, alternate, repeat; the right-most letter in the string indicates the most recent trial). Crosses indicate data. Red circles in the right plot indicate the probability of the stimulus repeating the previous stimulus, which is an important quality check."
 p_vector <- sampled_pars(RDM_RM)
-p_vector[1:6] <- c(log(2), log(1), .5, log(.15), 2, qnorm(0.1))
+p_vector[1:6] <- c(log(2), log(1), .5, log(.15), qnorm(0.1), 2)
 simDat <- make_data(p_vector, RDM_RM, data=dat)
 print_par("1x2")
 par(mar=c(3,3,2.5,0.5), mgp=c(2.2,0.5,0.0), cex=.7)
@@ -1525,18 +1528,18 @@ These results demonstrate that the second-degree recency effects in response pro
 The examples above mimic @mileticExplainingMultiScaleChoice2025 by using an RDM and assuming that stimulus memory causes a threshold (start point) bias. *EMC2* is flexibly designed to implement your own hypotheses. For example, we can propose a WDM instead, and hypothesise that drift rates rather than start points are biased. However, as the minimal implementation below demonstrates, this does not appear to fit as well, and loses quantitative model comparisons:
 
 ```{r sm-ddm-code, eval=FALSE, dependson=c("load-data", "baseline-wdm-design")}
-trend_SM_DDM <- make_trend(cov_names="Stim1", kernels="delta",
-                           par_names="v", bases="lin",
-                           phase="premap", 
-                            # DDM has no lR factor, so update every row
-                           at=NULL)
+SM_kernel_DDM <- make_kernel(type="delta", cov_names="Stim1", at=NULL)
+SM_base_DDM <- make_base(type="lin", target_parameter="v", 
+                         kernel=SM_kernel_DDM, phase="premap")
+SM_trend_DDM <- make_trend(SM_base_DDM)
+
 SM_DDM <- design(model=DDM,
                  data=dat,
                  covariates=c("Stim1"),
                  contrasts=list(S=Smat),
                  formula=list(v~S, a~1, t0~1),
                  constants=c(v.q0=0, v=0),
-                 trend=trend_SM_DDM)
+                 trend=SM_trend_DDM)
 
 # since v is estimated on the natural scale (in case of the DDM), we do not need to change the transformations, and we can use the default priors.
 emc_ddm <- make_emc(dat, design=SM_DDM)
@@ -1557,16 +1560,17 @@ fn <- "./cache/ds1_SMv_DDM.RData"
 if(file.exists(fn)) {
   emc_ddm <- EMC2:::loadRData(fn)
 } else {
-  trend_SM_DDM <- make_trend(cov_names="Stim1", kernels="delta",
-                             par_names="v", bases="lin",
-                             phase="premap", at=NULL)
+  SM_kernel_DDM <- make_kernel(type="delta", cov_names="Stim1", at=NULL)
+  SM_base_DDM <- make_base(type="lin", target_parameter="v", 
+                           kernel=SM_kernel_DDM, phase="premap")
+  SM_trend_DDM <- make_trend(SM_base_DDM)
   SM_DDM <- design(model=DDM,
                    data=dat,
                    covariates=c("Stim1"),
                    contrasts=list(S=Smat),
                    formula=list(v~S, a~1, t0~1),
                    constants=c(v.q0=0, v=0),
-                   trend=trend_SM_DDM)
+                   trend=SM_trend_DDM)
   
   # since v is estimated on the natural scale (in case of the DDM), we do not need to change the transformations, and we can use the default priors.
   emc_ddm <- make_emc(dat, design=SM_DDM)
@@ -1593,16 +1597,16 @@ Accuracy memory follows the same logic as above, with a different covariate (err
 For this reason, it is useful to have *EMC2* calculate accuracy with a function rather than specifying it in the dataframe (in which case it would be treated as a static experimental factor). The function is applied when generating posterior predictives, ensuring that the accuracy of the *simulated* data is used as a covariate.
 
 ```{r am-fit-code, eval=FALSE}
-AM_trend <- make_trend(cov_names="error",
-                       kernels="delta",
-                       par_names="v",
-                       bases="lin",
-                       phase="premap")
+AM_kernel <- make_kernel(type="delta", cov_names="error")
+AM_base <- make_base(type="lin", target_parameter="v", 
+                     kernel=AM_kernel, phase="premap")
+AM_trend <- make_trend(AM_base)
+
 RDM_AM <- design(model=RDM,
                  data=dat,
                  contrasts=list(lM=ADmat, lR=ADmat),
                  # functions= can be used to define covariates that depend on observed behaviour (here: errors); EMC2 will recompute these from simulated data when generating posterior predictives
-                 functions=list(error=function(x) x$S!=x$R),
+                 functions=list(error=function(x) as.numeric(x$S!=x$R)),
                  matchfun=function(d) d$S==d$lR,
                  # Here, we ensure that the minimum value of alpha after transformation is 0.01 instead of 0, to avoid regions of the parameter space where the model is  unidentified (with a learning rate of 0, the v.w parameter has no influence) on the data
                  transform=list(lower=c(v.alpha=0.01)),
@@ -1621,15 +1625,15 @@ emc <- fit(emc)
 credint(emc)
 ```
 ```{r am-fit-run, echo=FALSE, dependson="load-data"}
-AM_trend <- make_trend(cov_names="error",
-                       kernels="delta",
-                       par_names="v",
-                       bases="lin",
-                       phase="premap")
+AM_kernel <- make_kernel(type="delta", cov_names="error")
+AM_base <- make_base(type="lin", target_parameter="v", 
+                     kernel=AM_kernel, phase="premap")
+AM_trend <- make_trend(AM_base)
+
 RDM_AM <- design(model=RDM,
                  data=dat,
                  contrasts=list(lM=ADmat, lR=ADmat),
-                 functions=list(error=function(x) x$S!=x$R),
+                 functions=list(error=function(x) as.numeric(x$S!=x$R)),
                  matchfun=function(d) d$S==d$lR,
                  transform=list(lower=c(v.alpha=0.01)),
                  formula=list(B~1, v~lM, t0~1, s~lM),
@@ -1673,19 +1677,18 @@ plot_error_effects(dat, pp)
 As in the case of stimulus memory, the accuracy memory mechanism can be applied to other EAMs like the DDM, and it can affect other parameters. The DDM does not have an urgency mechanism, but we could, for example, allow AM to affect thresholds. This trend can be specified as post-transform since the thresholds are the same across all design cells. In this case, we can sample thresholds on the log scale, transform to the natural scale, and then apply the trend. However, this again does not appear to fit as well qualitatively, and loses model comparisons, as the following code shows:
 
 ```{r am-ddm-code, eval=FALSE}
-trend_AM_DDM <- make_trend(cov_names="error",
-                           kernels="delta",
-                           par_names="a",
-                           bases="lin",
-                           phase="posttransform",
-                           at=NULL)
+AM_kernel_DDM <- make_kernel(type="delta", cov_names="error", at=NULL)
+AM_base_DDM <- make_base(type="lin", target_parameter="a", 
+                     kernel=AM_kernel_DDM, phase="posttransform")
+AM_trend_DDM <- make_trend(AM_base_DDM)
+
 DDM_AM <- design(model=DDM,
                  data=dat,
-                 functions=list(error=function(x) x$S!=x$R),
+                 functions=list(error=function(x) as.numeric(x$S!=x$R)),
                  contrasts=list(S=Smat),
                  formula=list(v~S, a~1, t0~1),
                  constants=c(a.q0=0),
-                 trend=trend_AM_DDM,
+                 trend=AM_trend_DDM,
                  report_p_vector=FALSE)
 
 emc_ddm_am <- make_emc(dat, design=DDM_AM)
@@ -1697,19 +1700,17 @@ compare(list(rdm=emc, ddm=emc_ddm_am))
 ```{r am-ddm-run, echo=FALSE, fig.cap=cap, fig.height=fig_h[["1x1"]], fig.width=fig_w[["1x1"]], dependson="am-fit-run"}
 cap <- "Quality of fit of error-related effects by a WDM that allows thresholds to vary with accuracy memory. x-axes depict trial number relative to the error (trial 0); crosses are (group-averaged) mean RTs, error bars are 95\\% credible intervals of the models. Horizontal dashed lines indicate the mean RT."
 
-trend_AM_DDM <- make_trend(cov_names="error",
-                           kernels="delta",
-                           par_names="a",
-                           bases="lin",
-                           phase="posttransform",
-                           at=NULL)
+AM_kernel_DDM <- make_kernel(type="delta", cov_names="error", at=NULL)
+AM_base_DDM <- make_base(type="lin", target_parameter="a", 
+                     kernel=AM_kernel_DDM, phase="posttransform")
+AM_trend_DDM <- make_trend(AM_base_DDM)
 DDM_AM <- design(model=DDM,
                  data=dat,
-                 functions=list(error=function(x) x$S!=x$R),
+                 functions=list(error=function(x) as.numeric(x$S!=x$R)),
                  contrasts=list(S=Smat),
                  formula=list(v~S, a~1, t0~1),
                  constants=c(a.q0=0),
-                 trend=trend_AM_DDM,
+                 trend=AM_trend_DDM,
                  report_p_vector=FALSE)
 
 fn <- "./cache/ds1_AMa_DDM.RData"
@@ -1782,22 +1783,20 @@ writeLines(unname(knitr::knit_code$get("fm-custom-rcpp")), "./custom_kernel.cpp"
 We can then compile it in *R*, and supply a C pointer to the compiled kernel. Note that when we load a custom-kernel emc object from disk we need to reinitialise C pointers (see `?fix_custom_kernel_pointers`).
 
 ```{r fm-custom-code, eval=FALSE}
-ct <- register_trend(
+ck <- register_kernel(
    # parameter names in the order in which they are used in the C++ function
-  trend_parameters=c("q0", "alpha"),
+  kernel_parameters=c("q0", "alpha"),
   file="./custom_kernel.cpp",
   # alpha is a learning rate: bounded (0,1)
-  transforms=c(q0="identity", alpha="pnorm"),
-  base="lin"
+  transforms=c(q0="identity", alpha="pnorm")
 )
 
-trend_FM <- make_trend(par_names="B",
-                       cov_names=c("rt"),
-                       kernels="custom",
-                       # par_input passes additional model parameters to the kernel (here: B and B.w are needed to compute B_t/rt_t)
-                       par_input=list(c("B", "B.w")),
-                       bases=NULL,# base is defined in ct (register_trend above)
-                       custom_trend=ct)
+FM_kernel <- make_kernel(type="custom", custom_kernel=ck,
+                         cov_names="rt", 
+                         # par_input passes additional model parameters to the kernel (here: B and B.w are needed to compute B_t/rt_t)
+                         par_input=c("B", "B.w"))
+FM_base <- make_base(target_parameter="B", type="lin", kernel=FM_kernel)
+trend_FM <- make_trend(FM_base)
 
 design_FM <- design(model=RDM,
                     data=dat,
@@ -1816,21 +1815,20 @@ emc <- make_emc(dat, design=design_FM, prior_list=prior_FM, compress=FALSE)
 emc <- fit(emc)
 ```
 ```{r fm-custom-run, echo=FALSE, dependson=c("load-data", "baseline-rdm-design")}
-ct <- register_trend(
+ck <- register_kernel(
    # parameter names in the order in which they are used in the C++ function
-  trend_parameters=c("q0", "alpha"),
+  kernel_parameters=c("q0", "alpha"),
   file="./custom_kernel.cpp",
-  transforms=c(q0="identity", alpha="pnorm"),
-  base="lin"
+  # alpha is a learning rate: bounded (0,1)
+  transforms=c(q0="identity", alpha="pnorm")
 )
 
-trend_FM <- make_trend(par_names="B",
-                       cov_names=c("rt"),
-                       kernels="custom",
-                       # par_input passes additional model parameters to the kernel (here: B and B.w are needed to compute B_t/rt_t)
-                       par_input=list(c("B", "B.w")),
-                       bases=NULL,# base is defined in ct (register_trend above)
-                       custom_trend=ct)
+FM_kernel <- make_kernel(type="custom", custom_kernel=ck,
+                         cov_names="rt", 
+                         # par_input passes additional model parameters to the kernel (here: B and B.w are needed to compute B_t/rt_t)
+                         par_input=c("B", "B.w"))
+FM_base <- make_base(type="lin", target_parameter="B", kernel=FM_kernel)
+trend_FM <- make_trend(FM_base)
 
 design_FM <- design(model=RDM,
                     data=dat,
@@ -1872,6 +1870,6 @@ print_par("1x1")
 plot_spectrum(dat=dat, pp=pp, trial_duration=1.265)
 ```
 
-```{r close_log}
+```{r close_log, include=FALSE}
 close(log_file)
 ```
