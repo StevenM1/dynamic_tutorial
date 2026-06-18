@@ -117,7 +117,7 @@ fig_h <- list(
 )
 ```
 
-In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods using the *EMC2* package [@stevensonEMC2PackageCognitive2024]. Specifically, we will fit models to dataset 1 from @mileticExplainingMultiScaleChoice2025, which corresponds to the 'choice, short [CS]' condition from @Wagenmakers2004a. In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
+In this tutorial, we will demonstrate how to design dynamic evidence accumulation models and fit them to data using hierarchical Bayesian methods using the *EMC2* package [@stevensonBayesianHierarchicalCognitive2026]. Specifically, we will fit models to dataset 1 from @mileticExplainingMultiScaleChoice2025, which corresponds to the 'choice, short [CS]' condition from @Wagenmakers2004a. In this experiment, participants were presented with a single digit and required to determine whether the digit was even or odd.
 
 To enhance readability, the code blocks below include only the arguments strictly required to run the code. The R Markdown file that generates this document additionally contains hidden code blocks handling multi-core processing to speed up sampling and posterior predictive generation, automatic saving and loading of samples, and plot formatting to improve visibility in this PDF output. The source document is available at https://github.com/StevenM1/dynamic_tutorial/ (also linked on our OSF repository at https://osf.io/4e3ta/files/github), alongside an HTML version that facilitates copy-and-pasting.
 
@@ -283,7 +283,7 @@ prior_RDM <- prior(design_RDM)
 plot(prior_RDM, layout=c(1, 4))
 ```
 
-For the covariance matrix, *EMC2* offers several options; by default, the full covariance structure is estimated using a scale-mixture inverse-Wishart prior with inverse-Gamma mixture weights [@huangSimpleMarginallyNoninformative2013], which induces weakly informed half-$t$ priors on the standard deviations and uniform priors on the correlations. In the examples below, we use the default prior settings for the covariance matrix throughout; for a full treatment of the available options, see @stevensonEMC2PackageCognitive2024. Priors can be overridden with the `prior()` function, as documented in `?prior` and demonstrated for group-level means in examples below. 
+For the covariance matrix, *EMC2* offers several options; by default, the full covariance structure is estimated using a scale-mixture inverse-Wishart prior with inverse-Gamma mixture weights [@huangSimpleMarginallyNoninformative2013], which induces weakly informed half-$t$ priors on the standard deviations and uniform priors on the correlations. In the examples below, we use the default prior settings for the covariance matrix throughout; for a full treatment of the available options, see @stevensonBayesianHierarchicalCognitive2026 Priors can be overridden with the `prior()` function, as documented in `?prior` and demonstrated for group-level means in examples below. 
 
 Next, we can combine the data, design, and priors, and fit:
 
@@ -1271,7 +1271,7 @@ RDM_SM <- design(model=RDM,
                  report_p_vector=FALSE)
 ```
 
-We can now apply a similar prior to *B* as above and fit the model. Note that running `make_emc()` in the code snippet below returns a message saying compression is automatically turned off. Compression is a default feature in *EMC2* [@stevensonEMC2PackageCognitive2024] which leverages redundancy in choice-RT data to speed up likelihood computations. It is not possible with delta rules, which require all trials, and is therefore turned off once a delta rule trend is detected.
+We can now apply a similar prior to *B* as above and fit the model. Note that running `make_emc()` in the code snippet below returns a message saying compression is automatically turned off. Compression is a default feature in *EMC2* [@stevensonBayesianHierarchicalCognitive2026] which leverages redundancy in choice-RT data to speed up likelihood computations. It is not possible with delta rules, which require all trials, and is therefore turned off once a delta rule trend is detected.
 
 ```{r sm-fit-run, include=FALSE, dependson="sm-design"}
 fn <- "./cache/ds1_SMB.RData"
@@ -1812,7 +1812,7 @@ design_FM <- design(model=RDM,
                     trend=trend_FM)
 # NB1: Why q0=3? When fitting a static RDM, the mean fit threshold over mean RT ratio is very roughly 3 in this dataset. It serves as a reasonable place to start
 prior_FM <- prior(design_FM, mu_mean=c(B=2), mu_sd=c(B=0.5))
-emc <- make_emc(dat, design=design_FM, prior_list=prior_FM)
+emc <- make_emc(dat, design=design_FM, prior_list=prior_FM, compress=FALSE)
 emc <- fit(emc)
 ```
 ```{r fm-custom-run, echo=FALSE, dependson=c("load-data", "baseline-rdm-design")}
