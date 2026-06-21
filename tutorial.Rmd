@@ -1386,7 +1386,7 @@ Alternatively, we can plot the evolution of the Q-values themselves. Note that `
 ```{r sm-qvalues-code, eval=FALSE}
 # k1.Qvalue is the name EMC2 assigns to the Q-values of the delta rule of kernel 1
 plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
-           par_name="k1.Qvalue",
+           par_name="k1.Stim1.Qvalue",
            xlim=c(1, 20))
 ```
 
@@ -1394,7 +1394,7 @@ plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
 cap <- "Estimated Q-values corresponding to the SM mechanism for all six participants (panels). Green shaded areas indicate the 95\\% credible interval."
 print_par("2x3")
 plot_trend(attr(pp, "trialwise_parameters"), emc=emc,
-           par_name="k1.Qvalue",
+           par_name="k1.Stim1.Qvalue",
            xlim=c(1, 20), set.par=FALSE)
 ```
 
